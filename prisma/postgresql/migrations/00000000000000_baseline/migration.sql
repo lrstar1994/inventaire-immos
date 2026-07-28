@@ -1,5 +1,8 @@
 -- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
+CREATE SCHEMA IF NOT EXISTS "immos";
+
+-- Keep every unqualified object from this migration inside the dedicated schema.
+SET search_path = "immos";
 
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('DIRECTION', 'INVENTORY_MANAGER', 'MAINTENANCE_MANAGER', 'BASIC_USER');
@@ -622,14 +625,11 @@ ALTER TABLE "asset_document_lines" ADD CONSTRAINT "asset_document_lines_location
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- PostgreSQL-only invariant: at most one active primary photo per asset.
--- Prisma Schema Language cannot currently represent a partial unique index,
--- so this statement must remain in the reviewed SQL baseline.
 CREATE UNIQUE INDEX "asset_files_one_active_primary_per_asset_idx"
 ON "asset_files" ("asset_unit_id")
 WHERE "is_primary" = true AND "deleted_at" IS NULL;
 
--- A primary file must be an image. This preserves the existing server rule at
--- the database boundary without changing any business workflow.
+-- A primary file must be an image.
 ALTER TABLE "asset_files"
 ADD CONSTRAINT "asset_files_primary_must_be_image_check"
 CHECK (NOT "is_primary" OR "mime_type" LIKE 'image/%');
