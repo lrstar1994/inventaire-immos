@@ -1,0 +1,4 @@
+-- SQLite does not enforce Prisma enum values at the database level.
+-- This migration records the Lot 5 UI change to practical movement reasons:
+-- ASSIGNMENT, LOAN_EVENT, RETURN_FROM_LOAN_EVENT, WORKSHOP_REPAIR, RETURN_FROM_WORKSHOP_REPAIR.
+-- Definitive inventory exits remain outside Lot 5.

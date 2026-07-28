@@ -1,0 +1,26 @@
+{
+  "name": "app-inventaire-immos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --webpack -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "prisma:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:apply-local": "node --experimental-sqlite scripts/apply-sqlite-migration.mjs",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "next": "^16.2.6",
+    "prisma": "^6.19.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  }
+}

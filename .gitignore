@@ -1,0 +1,22 @@
+# Keep every real environment file out of version control.
+/.env*
+!/.env.example
+
+/node_modules/
+/.next/
+/.npm-cache/
+/.appdata/
+/generated/
+/outputs/
+/work/
+/backups/
+/backup*/
+
+# SQLite databases and their transient journal/WAL files.
+/prisma/*.db
+/prisma/*.db-*
+/*.db
+/*.db-*
+
+/public/uploads/assets/*
+!/public/uploads/assets/.gitkeep
