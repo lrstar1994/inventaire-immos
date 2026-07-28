@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --webpack -H 0.0.0.0",
+    "dev:sqlite": "node scripts/run-next-with-database.mjs sqlite dev",
+    "dev:postgresql": "node scripts/run-next-with-database.mjs postgresql dev",
     "build": "next build",
+    "build:sqlite": "node scripts/run-next-with-database.mjs sqlite build",
+    "build:postgresql": "node scripts/run-next-with-database.mjs postgresql build",
     "start": "next start",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
