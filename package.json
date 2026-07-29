@@ -11,6 +11,7 @@
     "build": "next build",
     "build:sqlite": "node scripts/run-next-with-database.mjs sqlite build",
     "build:postgresql": "node scripts/run-next-with-database.mjs postgresql build",
+    "test:storage": "node --test scripts/test-file-storage-abstraction.mjs",
     "start": "next start",
     "prisma:generate": "prisma generate",
     "prisma:generate:recipe": "prisma generate --schema prisma/postgresql-recipe/schema.prisma",
