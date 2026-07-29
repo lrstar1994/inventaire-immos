@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { assertActiveDatabaseSchema, prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api";
 import { getRequestUser } from "@/lib/request-user";
 import { canManageAssetDocuments } from "@/lib/roles";
@@ -18,6 +18,7 @@ export async function POST(request, { params }) {
 
   try {
     await prisma.$transaction(async (tx) => {
+      await assertActiveDatabaseSchema(tx);
       const documentToValidate = await tx.assetDocument.findUnique({
         where: { id },
         include: {

@@ -1,0 +1,546 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma-recipe"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("SUPABASE_DIRECT_URL")
+  schemas  = ["immos_recipe_phase8"]
+}
+
+enum UserRole {
+  DIRECTION
+  INVENTORY_MANAGER
+  MAINTENANCE_MANAGER
+  BASIC_USER
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetCondition {
+  NEW
+  VERY_GOOD
+  GOOD
+  FAIR
+  WORN
+  TO_REPAIR
+  OUT_OF_ORDER
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetUnitStatus {
+  IN_SERVICE
+  IN_STOCK
+  IN_REPAIR
+  TEMPORARILY_OUT
+  MISSING
+  RETIRED
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetInformationStatus {
+  COMPLETE
+  PARTIAL
+  TO_COMPLETE
+  UNKNOWN_INFO
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetEntryType {
+  PURCHASE
+  EXISTING_STOCK
+  DONATION
+  INCOMING_TRANSFER
+  PROGRESSIVE_INVENTORY
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetEntryStatus {
+  DRAFT
+  VALIDATED
+  CANCELLED
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetDocumentType {
+  PROGRESSIVE_INVENTORY_SHEET
+  ENTRY_SLIP
+  ASSIGNMENT_SLIP
+  MOVEMENT_SLIP
+  BATCH_MOVEMENT_SLIP
+  ISSUE_REPORT
+  REPAIR_SHEET
+  PERIODIC_INVENTORY_SHEET
+  DISCREPANCY_SHEET
+  REGULARIZATION_SLIP
+  TEMPORARY_EXIT_SLIP
+  RETURN_SLIP
+  FINAL_EXIT_SLIP
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetDocumentStatus {
+  DRAFT
+  VALIDATED
+  CANCELLED
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetMovementType {
+  ASSIGNMENT
+  REASSIGNMENT
+  LOAN_EVENT
+  RETURN_FROM_LOAN_EVENT
+  WORKSHOP_REPAIR
+  RETURN_FROM_WORKSHOP_REPAIR
+  LOCATION_CHANGE
+  ROOM_TRANSFER
+  STOCK_TRANSFER
+  TEMPORARY_EXIT
+  RETURN_FROM_TEMPORARY_EXIT
+  REGULARIZATION
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetMovementStatus {
+  DRAFT
+  VALIDATED
+  CANCELLED
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetFileType {
+  MAIN_PHOTO
+  GENERAL_VIEW
+  DETAIL_VIEW
+  DEFECT_PHOTO
+  SERIAL_OR_LABEL
+  INVOICE
+  WARRANTY
+  OTHER
+
+  @@schema("immos_recipe_phase8")
+}
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  name              String
+  role              UserRole   @default(BASIC_USER)
+  status            UserStatus @default(ACTIVE)
+  authProvider      String     @default("local") @map("auth_provider")
+  externalAuthId    String?    @map("external_auth_id")
+  directionCodeHash String?    @map("direction_code_hash")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?    @map("created_by")
+  updatedById       String?    @map("updated_by")
+  deletedAt         DateTime?  @map("deleted_at") @db.Timestamptz(3)
+  auditLogs         AuditLog[]
+
+  @@index([role])
+  @@index([status])
+  @@index([externalAuthId])
+  @@map("users")
+  @@schema("immos_recipe_phase8")
+}
+
+model Supplier {
+  id           String       @id @default(cuid())
+  name         String
+  code         String?      @unique
+  supplierType String?      @map("supplier_type")
+  contactName  String?      @map("contact_name")
+  email        String?
+  phone        String?
+  address      String?
+  notes        String?
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById  String?      @map("created_by")
+  updatedById  String?      @map("updated_by")
+  deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz(3)
+  assetItems   AssetItem[]
+  assetEntries AssetEntry[]
+  assetUnits   AssetUnit[]
+
+  @@index([name])
+  @@index([status])
+  @@map("suppliers")
+  @@schema("immos_recipe_phase8")
+}
+
+model Location {
+  id                String              @id @default(cuid())
+  name              String
+  code              String?             @unique
+  locationType      String?             @map("location_type")
+  parentId          String?             @map("parent_id")
+  parent            Location?           @relation("LocationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          Location[]          @relation("LocationHierarchy")
+  notes             String?
+  status            UserStatus          @default(ACTIVE)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?             @map("created_by")
+  updatedById       String?             @map("updated_by")
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(3)
+  assetEntries      AssetEntry[]
+  assetUnits        AssetUnit[]
+  documentLines     AssetDocumentLine[]
+  movementLinesFrom AssetMovementLine[] @relation("MovementFromLocation")
+  movementLinesTo   AssetMovementLine[] @relation("MovementToLocation")
+
+  @@index([name])
+  @@index([parentId])
+  @@index([status])
+  @@map("locations")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetCategory {
+  id           String          @id @default(cuid())
+  name         String
+  code         String?         @unique
+  description  String?
+  parentId     String?         @map("parent_id")
+  parent       AssetCategory?  @relation("AssetCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     AssetCategory[] @relation("AssetCategoryHierarchy")
+  displayOrder Int             @default(0) @map("display_order")
+  status       UserStatus      @default(ACTIVE)
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById  String?         @map("created_by")
+  updatedById  String?         @map("updated_by")
+  deletedAt    DateTime?       @map("deleted_at") @db.Timestamptz(3)
+  assetItems   AssetItem[]
+
+  @@index([name])
+  @@index([parentId])
+  @@index([status])
+  @@map("asset_categories")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetItem {
+  id                String              @id @default(cuid())
+  name              String
+  code              String?             @unique
+  description       String?
+  unitLabel         String?             @map("unit_label")
+  depreciationYears Int?                @map("depreciation_years")
+  categoryId        String              @map("category_id")
+  supplierId        String?             @map("supplier_id")
+  category          AssetCategory       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  supplier          Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  status            UserStatus          @default(ACTIVE)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?             @map("created_by")
+  updatedById       String?             @map("updated_by")
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(3)
+  assetEntries      AssetEntry[]
+  assetUnits        AssetUnit[]
+  documentLines     AssetDocumentLine[]
+
+  @@index([name])
+  @@index([categoryId])
+  @@index([supplierId])
+  @@index([status])
+  @@map("asset_items")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetEntry {
+  id                String                 @id @default(cuid())
+  entryNumber       String                 @unique @map("entry_number")
+  assetItemId       String                 @map("asset_item_id")
+  locationId        String                 @map("location_id")
+  supplierId        String?                @map("supplier_id")
+  quantity          Int
+  entryType         AssetEntryType         @map("entry_type")
+  entryDate         DateTime               @map("entry_date") @db.Timestamptz(3)
+  initialCondition  AssetCondition         @map("initial_condition")
+  initialStatus     AssetUnitStatus        @map("initial_status")
+  entryStatus       AssetEntryStatus       @default(VALIDATED) @map("entry_status")
+  informationStatus AssetInformationStatus @default(PARTIAL) @map("information_status")
+  purchaseDate      DateTime?              @map("purchase_date") @db.Timestamptz(3)
+  purchaseDateKnown Boolean                @default(false) @map("purchase_date_known")
+  supplierKnown     Boolean                @default(false) @map("supplier_known")
+  unitPrice         Int?                   @map("unit_price")
+  totalPrice        Int?                   @map("total_price")
+  priceKnown        Boolean                @default(false) @map("price_known")
+  invoiceAvailable  Boolean                @default(false) @map("invoice_available")
+  invoiceReference  String?                @map("invoice_reference")
+  notes             String?
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?                @map("created_by")
+  updatedById       String?                @map("updated_by")
+  assetItem         AssetItem              @relation(fields: [assetItemId], references: [id], onDelete: Restrict)
+  location          Location               @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  supplier          Supplier?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  assetUnits        AssetUnit[]
+  documentEntries   AssetDocumentEntry[]
+  documentLines     AssetDocumentLine[]
+
+  @@index([entryNumber])
+  @@index([assetItemId])
+  @@index([locationId])
+  @@index([supplierId])
+  @@index([entryStatus])
+  @@index([entryDate])
+  @@map("asset_entries")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetUnit {
+  id                String                 @id @default(cuid())
+  assetCode         String                 @unique @map("asset_code")
+  assetItemId       String                 @map("asset_item_id")
+  locationId        String                 @map("location_id")
+  supplierId        String?                @map("supplier_id")
+  entryId           String?                @map("entry_id")
+  serialNumber      String?                @map("serial_number")
+  condition         AssetCondition
+  status            AssetUnitStatus
+  informationStatus AssetInformationStatus @default(PARTIAL) @map("information_status")
+  purchaseDate      DateTime?              @map("purchase_date") @db.Timestamptz(3)
+  purchaseDateKnown Boolean                @default(false) @map("purchase_date_known")
+  unitPrice         Int?                   @map("unit_price")
+  priceKnown        Boolean                @default(false) @map("price_known")
+  supplierKnown     Boolean                @default(false) @map("supplier_known")
+  invoiceAvailable  Boolean                @default(false) @map("invoice_available")
+  invoiceReference  String?                @map("invoice_reference")
+  warrantyEndDate   DateTime?              @map("warranty_end_date") @db.Timestamptz(3)
+  possibleDuplicate Boolean                @default(false) @map("possible_duplicate")
+  notes             String?
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById       String?                @map("created_by")
+  updatedById       String?                @map("updated_by")
+  deletedAt         DateTime?              @map("deleted_at") @db.Timestamptz(3)
+  assetItem         AssetItem              @relation(fields: [assetItemId], references: [id], onDelete: Restrict)
+  location          Location               @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  supplier          Supplier?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  entry             AssetEntry?            @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  documentLines     AssetDocumentLine[]
+  movementLines     AssetMovementLine[]
+  assetFiles        AssetFile[]
+
+  @@index([assetCode])
+  @@index([assetItemId])
+  @@index([locationId])
+  @@index([supplierId])
+  @@index([entryId])
+  @@index([condition])
+  @@index([status])
+  @@index([informationStatus])
+  @@map("asset_units")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetFile {
+  id          String        @id @default(cuid())
+  assetUnitId String        @map("asset_unit_id")
+  fileType    AssetFileType @map("file_type")
+  fileLabel   String?       @map("file_label")
+  fileName    String        @map("file_name")
+  filePath    String        @map("file_path")
+  mimeType    String        @map("mime_type")
+  fileSize    Int           @map("file_size")
+  isPrimary   Boolean       @default(false) @map("is_primary")
+  notes       String?
+  createdById String?       @map("created_by")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  assetUnit   AssetUnit     @relation(fields: [assetUnitId], references: [id], onDelete: Restrict)
+
+  @@index([assetUnitId])
+  @@index([fileType])
+  @@index([isPrimary])
+  @@index([deletedAt])
+  @@map("asset_files")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetMovement {
+  id                 String              @id @default(cuid())
+  movementNumber     String              @unique @map("movement_number")
+  movementType       AssetMovementType   @map("movement_type")
+  movementStatus     AssetMovementStatus @default(DRAFT) @map("movement_status")
+  movementDate       DateTime            @map("movement_date") @db.Timestamptz(3)
+  reason             String
+  notes              String?
+  relatedMovementId  String?             @map("related_movement_id")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById        String?             @map("created_by")
+  updatedById        String?             @map("updated_by")
+  validatedById      String?             @map("validated_by")
+  validatedAt        DateTime?           @map("validated_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?           @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById      String?             @map("cancelled_by")
+  cancellationReason String?             @map("cancellation_reason")
+  lines              AssetMovementLine[]
+  relatedMovement    AssetMovement?      @relation("RelatedMovement", fields: [relatedMovementId], references: [id], onDelete: SetNull)
+  returnMovements    AssetMovement[]     @relation("RelatedMovement")
+
+  @@index([movementNumber])
+  @@index([movementType])
+  @@index([movementStatus])
+  @@index([movementDate])
+  @@index([relatedMovementId])
+  @@map("asset_movements")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetMovementLine {
+  id             String        @id @default(cuid())
+  movementId     String        @map("movement_id")
+  assetUnitId    String        @map("asset_unit_id")
+  fromLocationId String        @map("from_location_id")
+  toLocationId   String        @map("to_location_id")
+  lineNotes      String?       @map("line_notes")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  movement       AssetMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  assetUnit      AssetUnit     @relation(fields: [assetUnitId], references: [id], onDelete: Restrict)
+  fromLocation   Location      @relation("MovementFromLocation", fields: [fromLocationId], references: [id], onDelete: Restrict)
+  toLocation     Location      @relation("MovementToLocation", fields: [toLocationId], references: [id], onDelete: Restrict)
+
+  @@unique([movementId, assetUnitId])
+  @@index([movementId])
+  @@index([assetUnitId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@map("asset_movement_lines")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetDocument {
+  id                     String               @id @default(cuid())
+  documentNumber         String               @unique @map("document_number")
+  documentType           AssetDocumentType    @map("document_type")
+  documentDate           DateTime             @map("document_date") @db.Timestamptz(3)
+  title                  String
+  status                 AssetDocumentStatus  @default(DRAFT)
+  notes                  String?
+  createdAt              DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById            String?              @map("created_by")
+  updatedById            String?              @map("updated_by")
+  validatedById          String?              @map("validated_by")
+  validatedAt            DateTime?            @map("validated_at") @db.Timestamptz(3)
+  cancelledAt            DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById          String?              @map("cancelled_by")
+  cancellationReason     String?              @map("cancellation_reason")
+  cancellationApprovalId String?              @map("cancellation_approval_id")
+  entries                AssetDocumentEntry[]
+  lines                  AssetDocumentLine[]
+
+  @@index([documentNumber])
+  @@index([documentType])
+  @@index([status])
+  @@index([documentDate])
+  @@map("asset_documents")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetDocumentEntry {
+  id           String        @id @default(cuid())
+  documentId   String        @map("document_id")
+  assetEntryId String        @map("asset_entry_id")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  document     AssetDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  assetEntry   AssetEntry    @relation(fields: [assetEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([documentId, assetEntryId])
+  @@index([documentId])
+  @@index([assetEntryId])
+  @@map("asset_document_entries")
+  @@schema("immos_recipe_phase8")
+}
+
+model AssetDocumentLine {
+  id           String        @id @default(cuid())
+  documentId   String        @map("document_id")
+  assetEntryId String?       @map("asset_entry_id")
+  assetUnitId  String?       @map("asset_unit_id")
+  assetItemId  String?       @map("asset_item_id")
+  locationId   String?       @map("location_id")
+  quantity     Int           @default(1)
+  lineLabel    String        @map("line_label")
+  lineNotes    String?       @map("line_notes")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  document     AssetDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  assetEntry   AssetEntry?   @relation(fields: [assetEntryId], references: [id], onDelete: SetNull)
+  assetUnit    AssetUnit?    @relation(fields: [assetUnitId], references: [id], onDelete: SetNull)
+  assetItem    AssetItem?    @relation(fields: [assetItemId], references: [id], onDelete: SetNull)
+  location     Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, assetUnitId])
+  @@index([documentId])
+  @@index([assetEntryId])
+  @@index([assetUnitId])
+  @@index([assetItemId])
+  @@index([locationId])
+  @@map("asset_document_lines")
+  @@schema("immos_recipe_phase8")
+}
+
+model SensitiveActionApproval {
+  id          String    @id @default(cuid())
+  action      String
+  entityTable String    @map("entity_table")
+  entityId    String    @map("entity_id")
+  requestedBy String?   @map("requested_by")
+  approvedBy  String?   @map("approved_by")
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(3)
+  reason      String
+  metadata    String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([action])
+  @@index([entityTable, entityId])
+  @@index([requestedBy])
+  @@index([approvedBy])
+  @@map("sensitive_action_approvals")
+  @@schema("immos_recipe_phase8")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityTable String   @map("entity_table")
+  entityId    String   @map("entity_id")
+  summary     String?
+  metadata    String?
+  userId      String?  @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityTable, entityId])
+  @@index([action])
+  @@index([userId])
+  @@map("audit_logs")
+  @@schema("immos_recipe_phase8")
+}

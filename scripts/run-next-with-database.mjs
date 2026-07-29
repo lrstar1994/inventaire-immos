@@ -1,19 +1,46 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
+import { loadSupabaseEnv } from "./supabase-env.mjs";
 
-const [provider, command] = process.argv.slice(2);
-if (!["sqlite", "postgresql"].includes(provider)) {
-  throw new Error("Backend invalide. Valeurs autorisées : sqlite, postgresql.");
+const [provider, command, ...forwardedArgs] = process.argv.slice(2);
+if (!["sqlite", "postgresql", "postgresql-recipe"].includes(provider)) {
+  throw new Error("Backend invalide. Valeurs autorisées : sqlite, postgresql, postgresql-recipe.");
 }
 if (!["dev", "build", "start"].includes(command)) {
   throw new Error("Commande Next.js invalide. Valeurs autorisées : dev, build, start.");
 }
 
 const nextBinary = path.resolve(process.cwd(), "node_modules", "next", "dist", "bin", "next");
-const args = command === "dev" ? ["dev", "--webpack", "-H", "0.0.0.0"] : [command];
+const args = command === "dev"
+  ? ["dev", "--webpack", "-H", "0.0.0.0", ...forwardedArgs]
+  : [command, ...forwardedArgs];
+const childEnv = { ...process.env, APP_DATABASE_PROVIDER: provider === "sqlite" ? "sqlite" : "postgresql" };
+childEnv.APP_PRISMA_CLIENT = provider === "sqlite" ? "sqlite" : "normal";
+if (provider === "postgresql-recipe") {
+  const env = await loadSupabaseEnv();
+  const recipeUrl = new URL(env.SUPABASE_DIRECT_URL);
+  if (recipeUrl.port !== "5432") {
+    throw new Error("La recette PostgreSQL exige la connexion session Supabase sur le port 5432.");
+  }
+  if (recipeUrl.searchParams.get("sslmode") !== "require") {
+    throw new Error("La recette PostgreSQL exige sslmode=require.");
+  }
+  recipeUrl.searchParams.set("schema", "immos_recipe_phase8");
+  childEnv.SUPABASE_DATABASE_URL = recipeUrl.toString();
+  childEnv.APP_DATABASE_RECIPE_PHASE8 = "true";
+  childEnv.APP_PRISMA_CLIENT = "recipe";
+  const preflight = spawnSync(process.execPath, [path.resolve(process.cwd(), "scripts", "preflight-postgresql-recipe.mjs")], {
+    cwd: process.cwd(),
+    env: childEnv,
+    stdio: "inherit"
+  });
+  if (preflight.status !== 0) {
+    throw new Error("Démarrage recette refusé par le prévol de sécurité.");
+  }
+}
 const child = spawn(process.execPath, [nextBinary, ...args], {
   stdio: "inherit",
-  env: { ...process.env, APP_DATABASE_PROVIDER: provider }
+  env: childEnv
 });
 
 child.on("error", (error) => {

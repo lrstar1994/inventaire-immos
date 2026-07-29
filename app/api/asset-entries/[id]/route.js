@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { assertActiveDatabaseSchema, prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, INFORMATION_STATUSES, isAllowed } from "@/lib/asset-constants";
 import { createUnitsForValidatedEntry, normalizePriceFields, parseDate } from "@/lib/asset-service";
@@ -31,6 +31,7 @@ export async function PATCH(request, { params }) {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await assertActiveDatabaseSchema(tx);
       const current = await tx.assetEntry.findUnique({ where: { id } });
       if (!current) throw new Error("Entree introuvable.");
       if (current.entryStatus === "CANCELLED") throw new Error("Une entree annulee ne peut pas etre modifiee.");
