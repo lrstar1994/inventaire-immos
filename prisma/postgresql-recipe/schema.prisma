@@ -139,6 +139,13 @@ enum AssetFileType {
   @@schema("immos_recipe_phase8")
 }
 
+enum StorageProvider {
+  LOCAL
+  SUPABASE
+
+  @@schema("immos_recipe_phase8")
+}
+
 model User {
   id                String     @id @default(cuid())
   email             String     @unique
@@ -359,25 +366,32 @@ model AssetUnit {
 }
 
 model AssetFile {
-  id          String        @id @default(cuid())
-  assetUnitId String        @map("asset_unit_id")
-  fileType    AssetFileType @map("file_type")
-  fileLabel   String?       @map("file_label")
-  fileName    String        @map("file_name")
-  filePath    String        @map("file_path")
-  mimeType    String        @map("mime_type")
-  fileSize    Int           @map("file_size")
-  isPrimary   Boolean       @default(false) @map("is_primary")
-  notes       String?
-  createdById String?       @map("created_by")
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(3)
-  assetUnit   AssetUnit     @relation(fields: [assetUnitId], references: [id], onDelete: Restrict)
+  id              String           @id @default(cuid())
+  assetUnitId     String           @map("asset_unit_id")
+  fileType        AssetFileType    @map("file_type")
+  fileLabel       String?          @map("file_label")
+  fileName        String           @map("file_name")
+  filePath        String           @map("file_path")
+  storageProvider StorageProvider? @map("storage_provider")
+  storageBucket   String?          @map("storage_bucket")
+  storageKey      String?          @map("storage_key")
+  mimeType        String           @map("mime_type")
+  fileSize        Int              @map("file_size")
+  isPrimary       Boolean          @default(false) @map("is_primary")
+  notes           String?
+  createdById     String?          @map("created_by")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(3)
+  assetUnit       AssetUnit        @relation(fields: [assetUnitId], references: [id], onDelete: Restrict)
 
   @@index([assetUnitId])
   @@index([fileType])
   @@index([isPrimary])
   @@index([deletedAt])
+  @@index([storageProvider])
+  @@index([storageKey])
+  @@index([storageProvider, storageBucket, storageKey])
   @@map("asset_files")
   @@schema("immos_recipe_phase8")
 }
