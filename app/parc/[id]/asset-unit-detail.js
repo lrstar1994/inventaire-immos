@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AssetFileImage, AssetFileLink } from "../asset-file-access-view";
 
 const initialFileForm = {
   fileType: "MAIN_PHOTO",
@@ -217,7 +218,10 @@ export default function AssetUnitDetail({ assetUnitId }) {
       <section className="asset-detail-banner">
         <div className="asset-detail-photo">
           {mainPhoto ? (
-            <img alt={`Photo principale ${unit.assetCode}`} src={mainPhoto.filePath} />
+            <AssetFileImage
+              alt={`Photo principale ${unit.assetCode}`}
+              file={mainPhoto}
+            />
           ) : (
             <div className="asset-photo-placeholder">Photo</div>
           )}
@@ -325,7 +329,10 @@ export default function AssetUnitDetail({ assetUnitId }) {
             <strong>Photos et pieces jointes</strong>
             {mainPhoto ? (
               <div className="primary-photo">
-                <img alt={`Photo principale ${unit.assetCode}`} src={mainPhoto.filePath} />
+                <AssetFileImage
+                  alt={`Photo principale ${unit.assetCode}`}
+                  file={mainPhoto}
+                />
                 <span>Photo principale</span>
               </div>
             ) : (
@@ -334,7 +341,10 @@ export default function AssetUnitDetail({ assetUnitId }) {
             <div className="asset-thumbs">
               {imageFiles(unit).map((file) => (
                 <article className="asset-thumb-card" key={file.id}>
-                  <img alt={file.fileLabel || file.fileName} src={file.filePath} />
+                  <AssetFileImage
+                    alt={file.fileLabel || file.fileName}
+                    file={file}
+                  />
                   <span>{file.fileLabel || file.fileName}</span>
                   <div className="form-actions">
                     {!file.isPrimary ? (
@@ -353,7 +363,9 @@ export default function AssetUnitDetail({ assetUnitId }) {
               <div className="file-list">
                 {documentFiles(unit).map((file) => (
                   <article className="file-item" key={file.id}>
-                    <a href={file.filePath} target="_blank">Ouvrir le document</a>
+                    <AssetFileLink file={file}>
+                      Ouvrir le document
+                    </AssetFileLink>
                     <div>
                       <p className="fact-line"><strong>{file.fileLabel || file.fileName}</strong><span>{label(options.assetFileOptions?.fileTypes, file.fileType)}</span></p>
                       <p className="summary">{Math.round(file.fileSize / 1024)} Ko</p>

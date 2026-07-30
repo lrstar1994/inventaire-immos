@@ -5,6 +5,7 @@ import { parseDate, parseIntOrNull } from "@/lib/asset-service";
 import { writeAuditLog } from "@/lib/audit";
 import { canManageAssets } from "@/lib/roles";
 import { getRequestUser } from "@/lib/request-user";
+import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 const include = {
   assetItem: { select: { id: true, name: true, code: true, categoryId: true } },
@@ -35,7 +36,8 @@ export async function GET(_request, { params }) {
   const { id } = await params;
   const unit = await prisma.assetUnit.findFirst({ where: { id, deletedAt: null }, include });
   if (!unit) return jsonError("Bien introuvable.", 404);
-  return jsonOk({ unit });
+  const [accessibleUnit] = await toAssetUnitsAccessDtos([unit]);
+  return jsonOk({ unit: accessibleUnit });
 }
 
 export async function PATCH(request, { params }) {

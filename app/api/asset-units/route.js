@@ -3,6 +3,7 @@ import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { canManageAssets } from "@/lib/roles";
 import { getRequestUser } from "@/lib/request-user";
 import { auditEntryCreation, createAssetEntryWithUnits } from "@/lib/asset-service";
+import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 const include = {
   assetItem: { select: { id: true, name: true, code: true, categoryId: true } },
@@ -53,7 +54,7 @@ export async function GET(request) {
     orderBy: { assetCode: "asc" }
   });
 
-  return jsonOk({ units });
+  return jsonOk({ units: await toAssetUnitsAccessDtos(units) });
 }
 
 export async function POST(request) {

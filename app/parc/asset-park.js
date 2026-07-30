@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AssetFileImage } from "./asset-file-access-view";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -526,7 +527,11 @@ export default function AssetPark({ initialOptions = null, initialUnits = [], in
                       <td>{unit.assetCode}</td>
                       <td>
                         {primaryFile(unit) ? (
-                          <img className="asset-thumb" alt={`Photo ${unit.assetCode}`} src={primaryFile(unit).filePath} />
+                          <AssetFileImage
+                            className="asset-thumb"
+                            alt={`Photo ${unit.assetCode}`}
+                            file={primaryFile(unit)}
+                          />
                         ) : (
                           "-"
                         )}
@@ -790,7 +795,10 @@ export default function AssetPark({ initialOptions = null, initialUnits = [], in
             <article className="asset-preview-card">
               <div className="asset-preview-media">
                 {primaryFile(selected) ? (
-                  <img alt={`Photo principale ${selected.assetCode}`} src={primaryFile(selected).filePath} />
+                  <AssetFileImage
+                    alt={`Photo principale ${selected.assetCode}`}
+                    file={primaryFile(selected)}
+                  />
                 ) : (
                   <div className="asset-photo-placeholder">Photo</div>
                 )}

@@ -1214,3 +1214,103 @@ test("la resolution signee reste en memoire et ne persiste aucune valeur", async
   assert.equal(prismaWrites, 0);
   assert.equal("expiresAt" in assetFile, false);
 });
+
+test("le DTO UI conserve l'acces LOCAL sans exposer les metadonnees internes", async () => {
+  const { toAssetFileAccessDto } = await import(
+    "../lib/storage/asset-file-access-dto.js"
+  );
+  const dto = await toAssetFileAccessDto({
+    id: "legacy-local",
+    fileName: "photo.jpg",
+    storageProvider: null,
+    storageBucket: null,
+    storageKey: null,
+    filePath: "/uploads/assets/photo.jpg"
+  });
+
+  assert.equal(dto.provider, "LOCAL");
+  assert.equal(dto.accessUrl, "/uploads/assets/photo.jpg");
+  assert.equal(dto.accessExpiresAt, null);
+  assert.equal(dto.accessStatus, "available");
+  for (const internal of ["filePath", "storageProvider", "storageBucket", "storageKey"]) {
+    assert.equal(internal in dto, false);
+  }
+});
+
+test("le DTO UI utilise uniquement l'URL signee memoire pour SUPABASE", async () => {
+  const { toAssetFileAccessDto } = await import(
+    "../lib/storage/asset-file-access-dto.js"
+  );
+  const expiresAt = new Date("2026-07-30T12:05:00.000Z");
+  const dto = await toAssetFileAccessDto({
+    id: "supabase-file",
+    fileName: "private.png",
+    storageProvider: "SUPABASE",
+    storageBucket: "asset-files",
+    storageKey: "assets/unit/private.png",
+    filePath: "assets/unit/private.png"
+  }, {
+    resolveAccess: async () => ({
+      provider: "SUPABASE",
+      url: "https://example.invalid/signed/test-only",
+      expiresAt
+    })
+  });
+
+  assert.equal(dto.provider, "SUPABASE");
+  assert.equal(dto.accessUrl, "https://example.invalid/signed/test-only");
+  assert.equal(dto.accessExpiresAt, expiresAt.toISOString());
+  assert.equal(dto.filePath, undefined);
+  assert.equal(dto.storageKey, undefined);
+  assert.equal(dto.storageBucket, undefined);
+});
+
+test("une erreur de fichier reste partielle dans une liste de DTO", async () => {
+  const { StorageValidationError } = await import("../lib/storage/errors.js");
+  const { toAssetFileAccessDtos } = await import(
+    "../lib/storage/asset-file-access-dto.js"
+  );
+  const files = [{ id: "ok" }, { id: "invalid", storageProvider: "UNKNOWN" }];
+  const dtos = await toAssetFileAccessDtos(files, {
+    resolveAccess: async (file) => {
+      if (file.id === "invalid") {
+        throw new StorageValidationError("detail technique masque");
+      }
+      return { provider: "LOCAL", url: "/uploads/assets/ok.jpg", expiresAt: null };
+    }
+  });
+
+  assert.equal(dtos[0].accessStatus, "available");
+  assert.equal(dtos[1].accessStatus, "invalid");
+  assert.equal(dtos[1].accessUrl, null);
+  assert.doesNotMatch(dtos[1].accessMessage, /detail technique/);
+});
+
+test("les frontieres serveur projettent les fichiers avant serialisation", async () => {
+  const sources = await Promise.all([
+    "../app/parc/page.js",
+    "../app/api/asset-units/route.js",
+    "../app/api/asset-units/[id]/route.js",
+    "../app/api/asset-units/[id]/files/route.js",
+    "../app/api/asset-files/route.js",
+    "../app/api/asset-files/[id]/route.js"
+  ].map((relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8")));
+
+  for (const source of sources) {
+    assert.match(source, /toAsset(File|Units)AccessDto/);
+  }
+});
+
+test("les composants clients rendent accessUrl sans importer le client privilegie", async () => {
+  const sources = await Promise.all([
+    "../app/parc/asset-file-access-view.js",
+    "../app/parc/asset-park.js",
+    "../app/parc/[id]/asset-unit-detail.js"
+  ].map((relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8")));
+  const combined = sources.join("\n");
+
+  assert.match(combined, /accessUrl/);
+  assert.match(combined, /noopener noreferrer/);
+  assert.doesNotMatch(combined, /\.filePath/);
+  assert.doesNotMatch(combined, /storageKey|storageBucket|createSignedUrl|SERVICE_ROLE/);
+});

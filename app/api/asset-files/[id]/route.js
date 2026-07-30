@@ -3,6 +3,7 @@ import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { assetFileInclude, deleteAssetFile, updateAssetFile } from "@/lib/asset-file-service";
 import { getRequestUser } from "@/lib/request-user";
 import { canManageAssetFiles } from "@/lib/roles";
+import { toAssetFileAccessDto } from "@/lib/storage/asset-file-access-dto";
 
 export async function GET(_request, { params }) {
   const { id } = await params;
@@ -11,7 +12,7 @@ export async function GET(_request, { params }) {
     include: assetFileInclude()
   });
   if (!file || file.deletedAt) return jsonError("Fichier introuvable.", 404);
-  return jsonOk({ file });
+  return jsonOk({ file: await toAssetFileAccessDto(file) });
 }
 
 export async function PATCH(request, { params }) {

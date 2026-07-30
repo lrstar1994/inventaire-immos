@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api";
 import { assetFileOptions } from "@/lib/asset-file-service";
+import { toAssetFileAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 export async function GET(request, { params }) {
   const { id } = await params;
@@ -19,5 +20,9 @@ export async function GET(request, { params }) {
     orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }]
   });
 
-  return jsonOk({ unit, files, options: assetFileOptions() });
+  return jsonOk({
+    unit,
+    files: await toAssetFileAccessDtos(files),
+    options: assetFileOptions(),
+  });
 }

@@ -3,6 +3,7 @@ import { jsonError, jsonOk } from "@/lib/api";
 import { assetFileInclude, assetFileOptions, saveAssetFileFromForm } from "@/lib/asset-file-service";
 import { getRequestUser } from "@/lib/request-user";
 import { canUploadAssetFiles } from "@/lib/roles";
+import { toAssetFileAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -17,7 +18,10 @@ export async function GET(request) {
     orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }]
   });
 
-  return jsonOk({ files, options: assetFileOptions() });
+  return jsonOk({
+    files: await toAssetFileAccessDtos(files),
+    options: assetFileOptions(),
+  });
 }
 
 export async function POST(request) {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, ENTRY_TYPES, INFORMATION_STATUSES } from "@/lib/asset-constants";
 import { assetFileOptions } from "@/lib/asset-file-service";
+import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
 import AssetPark from "./asset-park";
 
 export const metadata = {
@@ -74,6 +75,8 @@ async function loadParkData() {
     })
   ]);
 
+  const accessibleUnits = await toAssetUnitsAccessDtos(units);
+
   return JSON.parse(JSON.stringify({
     options: {
       assetItems,
@@ -87,7 +90,7 @@ async function loadParkData() {
       entryStatuses: ENTRY_STATUSES,
       assetFileOptions: assetFileOptions()
     },
-    units,
+    units: accessibleUnits,
     entries
   }));
 }
