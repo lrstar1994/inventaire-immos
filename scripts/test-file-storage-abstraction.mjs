@@ -39,7 +39,12 @@ async function createMockedSupabaseProvider(responses) {
       SUPABASE_STORAGE_BUCKET: "asset-files"
     },
     fetchImplementation: async (url, options = {}) => {
-      calls.push({ url, method: options.method || "GET", body: options.body });
+      calls.push({
+        url,
+        method: options.method || "GET",
+        headers: options.headers || {},
+        body: options.body
+      });
       const next = responses.shift();
       if (next instanceof Error) throw next;
       return next;
@@ -457,6 +462,132 @@ test("le provider Supabase accepte un client injecte sans acces reseau", async (
   assert.equal(result.key, "assets/unit/file.txt");
   assert.equal(result.filePath, "assets/unit/file.txt");
   assert.equal(calls.length, 1);
+});
+
+test("l'upload Supabase transmet le type et interdit l'ecrasement", async () => {
+  const { provider, calls } = await createMockedSupabaseProvider([
+    new Response(null, { status: 200 })
+  ]);
+  const bytes = Buffer.from("phase10d-d", "utf8");
+  const result = await provider.putObject({
+    storageKey: "assets/units/unit-test/file-test/file-test.txt",
+    bytes,
+    contentType: "text/plain",
+    originalFilename: "phase10d-d-storage-test.txt",
+    size: bytes.length
+  });
+  assert.equal(result.provider, "SUPABASE");
+  assert.equal(result.bucket, "asset-files");
+  assert.equal(result.key, "assets/units/unit-test/file-test/file-test.txt");
+  assert.equal(result.filePath, result.key);
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].headers["content-type"], "text/plain");
+  assert.equal(calls[0].headers["x-upsert"], "false");
+  assert.equal(calls[0].body.equals(bytes), true);
+});
+
+test("les erreurs d'upload Supabase sont converties sans secret", async () => {
+  for (const [response, pattern] of [
+    [new Response(null, { status: 409 }), /existe deja/],
+    [new Response(null, { status: 404 }), /Bucket Storage inaccessible/],
+    [new Response(null, { status: 403 }), /Acces Storage refuse/],
+    [new Response(null, { status: 500 }), /Upload Storage refuse/],
+    [new TypeError("network includes test-only-secret"), /erreur reseau/]
+  ]) {
+    const { provider } = await createMockedSupabaseProvider([response]);
+    const bytes = Buffer.from("x");
+    await assert.rejects(
+      provider.putObject({
+        storageKey: "assets/units/unit-test/file-test/file-test.txt",
+        bytes,
+        contentType: "text/plain",
+        originalFilename: "test.txt",
+        size: bytes.length
+      }),
+      (error) => {
+        assert.match(error.message, pattern);
+        assert.doesNotMatch(error.message, /test-only-secret/);
+        return true;
+      }
+    );
+  }
+});
+
+test("un contenu Supabase incoherent est rejete avant tout appel", async () => {
+  const { provider, calls } = await createMockedSupabaseProvider([]);
+  await assert.rejects(
+    provider.putObject({
+      storageKey: "assets/units/unit-test/file-test/file-test.txt",
+      bytes: Buffer.from("x"),
+      contentType: "text/plain",
+      originalFilename: "test.txt",
+      size: 2
+    }),
+    /Metadonnees du contenu Storage invalides/
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("la compensation Supabase supprime exactement la cle creee", async () => {
+  const { provider, calls } = await createMockedSupabaseProvider([
+    new Response(null, { status: 200 }),
+    new Response(null, { status: 200 })
+  ]);
+  const bytes = Buffer.from("phase10d-d");
+  const storedObject = await provider.putObject({
+    storageKey: "assets/units/unit-test/file-test/file-test.txt",
+    bytes,
+    contentType: "text/plain",
+    originalFilename: "test.txt",
+    size: bytes.length
+  });
+  const persistenceError = new Error("Prisma test failure");
+  await assert.rejects(
+    persistWithStorageCompensation({
+      storage: provider,
+      storedObject,
+      persist: async () => {
+        throw persistenceError;
+      }
+    }),
+    (error) => error === persistenceError
+  );
+  assert.deepEqual(calls.map(({ method }) => method), ["POST", "DELETE"]);
+  assert.equal(calls[0].url, calls[1].url);
+});
+
+test("une erreur de suppression Supabase ne remplace pas l'erreur Prisma", async () => {
+  const { provider } = await createMockedSupabaseProvider([
+    new Response(null, { status: 200 }),
+    new Response(null, { status: 500 })
+  ]);
+  const bytes = Buffer.from("phase10d-d");
+  const storedObject = await provider.putObject({
+    storageKey: "assets/units/unit-test/file-test/file-test.txt",
+    bytes,
+    contentType: "text/plain",
+    originalFilename: "test.txt",
+    size: bytes.length
+  });
+  const persistenceError = new Error("Prisma test failure");
+  const logs = [];
+  await assert.rejects(
+    persistWithStorageCompensation({
+      storage: provider,
+      storedObject,
+      persist: async () => {
+        throw persistenceError;
+      },
+      logCompensationFailure: (details) => logs.push(details)
+    }),
+    (error) => error === persistenceError
+  );
+  assert.deepEqual(logs, [{
+    provider: "SUPABASE",
+    bucket: "asset-files",
+    storageKey: "assets/units/unit-test/file-test/file-test.txt",
+    errorType: "StorageProviderError"
+  }]);
 });
 
 test("la configuration privilegiee reste hors des modules client et barrels partages", async () => {
