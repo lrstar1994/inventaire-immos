@@ -744,20 +744,20 @@ test("isObjectListed refuse une extension voisine", async () => {
   assert.equal(await provider.isObjectListed("diagnostics/folder/file.png"), false);
 });
 
-test("isObjectListed ne confond pas un sous-dossier voisin", async () => {
+test("isObjectListed ne confond pas un dossier homonyme avec un fichier", async () => {
   const { provider, calls } = await createMockedSupabaseProvider([
     Response.json([{ name: "file.png", id: null }])
   ]);
   assert.equal(
     await provider.isObjectListed("diagnostics/expected/file.png"),
-    true
+    false
   );
   assert.equal(JSON.parse(calls[0].body).prefix, "diagnostics/expected");
 });
 
 test("isObjectListed separe correctement une cle racine", async () => {
   const { provider, calls } = await createMockedSupabaseProvider([
-    Response.json([{ name: "file.png" }])
+    Response.json([{ name: "file.png", id: "root-object-id" }])
   ]);
   assert.equal(await provider.isObjectListed("file.png"), true);
   const request = JSON.parse(calls[0].body);
@@ -806,8 +806,8 @@ test("isObjectListed propage une reponse invalide", async () => {
 
 test("isObjectListed trouve l'objet sur une page suivante", async () => {
   const { provider, calls } = await createMockedSupabaseProvider([
-    Response.json([{ name: "a.png" }, { name: "b.png" }]),
-    Response.json([{ name: "file.png" }])
+    Response.json([{ name: "a.png", id: "a" }, { name: "b.png", id: "b" }]),
+    Response.json([{ name: "file.png", id: "object-id" }])
   ]);
   assert.equal(
     await provider.isObjectListed("diagnostics/folder/file.png", { pageSize: 2 }),
