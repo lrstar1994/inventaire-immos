@@ -55,6 +55,72 @@ test("le provider par defaut et la selection explicite sont controles", () => {
   assert.throws(() => resolveFileStorageProviderName("unknown"), /APP_FILE_STORAGE_PROVIDER invalide/);
 });
 
+test("la configuration Supabase valide est normalisee sans valeur implicite", async () => {
+  const { readSupabaseStorageConfiguration } = await import(
+    "../lib/storage/supabase-storage-server-config.js"
+  );
+  const configuration = readSupabaseStorageConfiguration({
+    NEXT_PUBLIC_SUPABASE_URL: " https://example.invalid/ ",
+    SUPABASE_SERVICE_ROLE_KEY: " test-service-role ",
+    SUPABASE_STORAGE_BUCKET: " asset-files "
+  });
+  assert.deepEqual(configuration, {
+    url: "https://example.invalid",
+    serviceRoleKey: "test-service-role",
+    bucket: "asset-files"
+  });
+  assert.equal(Object.isFrozen(configuration), true);
+});
+
+test("chaque variable Supabase serveur obligatoire est controlee separement", async () => {
+  const { readSupabaseStorageConfiguration } = await import(
+    "../lib/storage/supabase-storage-server-config.js"
+  );
+  const valid = {
+    NEXT_PUBLIC_SUPABASE_URL: "https://example.invalid",
+    SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+    SUPABASE_STORAGE_BUCKET: "asset-files"
+  };
+  for (const name of Object.keys(valid)) {
+    assert.throws(
+      () => readSupabaseStorageConfiguration({ ...valid, [name]: "" }),
+      new RegExp(name)
+    );
+  }
+});
+
+test("les URL Supabase non HTTP(S) ou avec identifiants sont rejetees", async () => {
+  const { readSupabaseStorageConfiguration } = await import(
+    "../lib/storage/supabase-storage-server-config.js"
+  );
+  for (const url of ["not-a-url", "ftp://example.invalid", "https://user:pass@example.invalid"]) {
+    assert.throws(
+      () => readSupabaseStorageConfiguration({
+        NEXT_PUBLIC_SUPABASE_URL: url,
+        SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+        SUPABASE_STORAGE_BUCKET: "asset-files"
+      }),
+      /URL HTTP\(S\)/
+    );
+  }
+});
+
+test("les noms de bucket dangereux sont rejetes", async () => {
+  const { readSupabaseStorageConfiguration } = await import(
+    "../lib/storage/supabase-storage-server-config.js"
+  );
+  for (const bucket of ["/asset-files", "../asset-files", "asset/files", "asset\\files"]) {
+    assert.throws(
+      () => readSupabaseStorageConfiguration({
+        NEXT_PUBLIC_SUPABASE_URL: "https://example.invalid",
+        SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+        SUPABASE_STORAGE_BUCKET: bucket
+      }),
+      /nom de bucket relatif/
+    );
+  }
+});
+
 test("la factory n'initialise pas Supabase en mode local", () => {
   let localCalls = 0;
   let supabaseCalls = 0;
@@ -270,10 +336,141 @@ test("les URL signees expirent par defaut apres cinq minutes", () => {
 test("le provider Supabase reste serveur, paresseux et sans URL publique", async () => {
   const source = await readFile(new URL("../lib/storage/supabase-storage-provider.js", import.meta.url), "utf8");
   assert.match(source, /^import "server-only";/);
-  assert.match(source, /this\.configuration = null/);
+  assert.match(source, /createSupabaseStorageAdminClientFactory/);
   assert.match(source, /createSignedDownloadUrl\(storageKey, expiresInSeconds = DEFAULT_SIGNED_URL_EXPIRY_SECONDS\)/);
   assert.doesNotMatch(source, /getPublicUrl/);
+  assert.doesNotMatch(source, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(source, /console\.(log|error|warn)/);
+});
+
+test("le client administrateur refuse un environnement navigateur simule", async () => {
+  const { createSupabaseStorageAdminClient } = await import(
+    "../lib/storage/supabase-storage-admin-client.js"
+  );
+  assert.throws(
+    () => createSupabaseStorageAdminClient({
+      env: {},
+      runtime: { window: {} },
+      fetchImplementation: async () => assert.fail("fetch ne doit pas etre appele")
+    }),
+    /reserve au serveur/
+  );
+});
+
+test("la factory du client administrateur est paresseuse et reutilise son instance", async () => {
+  const { createSupabaseStorageAdminClientFactory } = await import(
+    "../lib/storage/supabase-storage-admin-client.js"
+  );
+  let fetchCalls = 0;
+  const getClient = createSupabaseStorageAdminClientFactory({
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.invalid/",
+      SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+      SUPABASE_STORAGE_BUCKET: "asset-files"
+    },
+    runtime: {},
+    fetchImplementation: async () => {
+      fetchCalls += 1;
+      return new Response(null, { status: 200 });
+    }
+  });
+  const first = getClient();
+  const second = getClient();
+  assert.equal(first, second);
+  assert.equal(first.bucketName, "asset-files");
+  assert.equal(fetchCalls, 0);
+});
+
+test("le client administrateur construit des requetes privees sans session", async () => {
+  const { createSupabaseStorageAdminClient } = await import(
+    "../lib/storage/supabase-storage-admin-client.js"
+  );
+  const calls = [];
+  const client = createSupabaseStorageAdminClient({
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.invalid",
+      SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+      SUPABASE_STORAGE_BUCKET: "asset-files"
+    },
+    runtime: {},
+    fetchImplementation: async (url, options) => {
+      calls.push({ url, options });
+      return new Response(null, { status: 200 });
+    }
+  });
+  const headers = client.requestHeaders({ "content-type": "application/octet-stream" });
+  assert.equal(headers.apikey, "test-service-role");
+  assert.equal(headers.authorization, "Bearer test-service-role");
+  assert.equal(
+    client.objectUrl("assets/unit/file.jpg"),
+    "https://example.invalid/storage/v1/object/asset-files/assets/unit/file.jpg"
+  );
+  await client.request(client.objectUrl("assets/unit/file.jpg"), { method: "HEAD", headers });
+  assert.equal(calls.length, 1);
+});
+
+test("une configuration invalide ne construit ni client ni requete", async () => {
+  const { createSupabaseStorageAdminClientFactory } = await import(
+    "../lib/storage/supabase-storage-admin-client.js"
+  );
+  let fetchCalls = 0;
+  const getClient = createSupabaseStorageAdminClientFactory({
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.invalid",
+      SUPABASE_SERVICE_ROLE_KEY: "",
+      SUPABASE_STORAGE_BUCKET: "asset-files"
+    },
+    runtime: {},
+    fetchImplementation: async () => {
+      fetchCalls += 1;
+    }
+  });
+  assert.throws(() => getClient(), /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("le provider Supabase accepte un client injecte sans acces reseau", async () => {
+  const { SupabaseStorageProvider } = await import("../lib/storage/supabase-storage-provider.js");
+  const calls = [];
+  const provider = new SupabaseStorageProvider({
+    adminClient: {
+      bucketName: "asset-files",
+      projectUrl: "https://example.invalid",
+      requestHeaders: (extra = {}) => ({ authorization: "Bearer fake", ...extra }),
+      objectUrl: (key) => `mock://asset-files/${key}`,
+      objectListUrl: () => "mock://asset-files",
+      async request(url, options) {
+        calls.push({ url, options });
+        return new Response(null, { status: 200 });
+      }
+    }
+  });
+  const bytes = Buffer.from("mock-only");
+  const result = await provider.putObject({
+    storageKey: "assets/unit/file.txt",
+    bytes,
+    contentType: "text/plain",
+    size: bytes.length
+  });
+  assert.equal(result.provider, "SUPABASE");
+  assert.equal(result.bucket, "asset-files");
+  assert.equal(result.key, "assets/unit/file.txt");
+  assert.equal(result.filePath, "assets/unit/file.txt");
+  assert.equal(calls.length, 1);
+});
+
+test("la configuration privilegiee reste hors des modules client et barrels partages", async () => {
+  const [configurationSource, clientSource, barrelSource] = await Promise.all([
+    readFile(new URL("../lib/storage/supabase-storage-server-config.js", import.meta.url), "utf8"),
+    readFile(new URL("../lib/storage/supabase-storage-admin-client.js", import.meta.url), "utf8"),
+    readFile(new URL("../lib/storage/index.js", import.meta.url), "utf8")
+  ]);
+  assert.match(configurationSource, /^import "server-only";/);
+  assert.match(clientSource, /^import "server-only";/);
+  assert.doesNotMatch(configurationSource, /["']use client["']/);
+  assert.doesNotMatch(clientSource, /["']use client["']/);
+  assert.doesNotMatch(barrelSource, /supabase-storage-(?:server-config|admin-client)/);
+  assert.doesNotMatch(configurationSource, /NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY/);
 });
 
 test("la factory concrete n'effectue aucune operation Storage au chargement", async () => {
