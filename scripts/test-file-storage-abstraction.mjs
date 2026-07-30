@@ -975,3 +975,242 @@ test("deleteObject n'effectue aucune seconde suppression automatique", async () 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].method, "DELETE");
 });
+
+async function loadAssetFileAccessResolver() {
+  return import("../lib/storage/asset-file-access.js");
+}
+
+test("le TTL des URL signees est centralise et strictement borne", async () => {
+  const {
+    DEFAULT_SIGNED_URL_EXPIRY_SECONDS,
+    resolveSignedUrlExpirySeconds
+  } = await import("../lib/storage/config.js");
+  assert.equal(DEFAULT_SIGNED_URL_EXPIRY_SECONDS, 300);
+  assert.equal(resolveSignedUrlExpirySeconds(undefined), 300);
+  assert.equal(resolveSignedUrlExpirySeconds(" 300 "), 300);
+  for (const value of ["abc", "-1", "59", "3601", "1.5"]) {
+    assert.throws(() => resolveSignedUrlExpirySeconds(value), /TTL_SECONDS/);
+  }
+});
+
+test("le resolveur conserve une ancienne ligne LOCAL sans initialiser Supabase", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  let providerCalls = 0;
+  const assetFile = {
+    id: "legacy-local",
+    storageProvider: null,
+    storageBucket: null,
+    storageKey: null,
+    filePath: "/uploads/assets/ABC/legacy.jpg"
+  };
+  const result = await resolveAssetFileAccess(assetFile, {
+    getStorageProvider: () => {
+      providerCalls += 1;
+      throw new Error("Supabase ne doit pas etre initialise.");
+    }
+  });
+  assert.deepEqual(result, {
+    provider: "LOCAL",
+    url: "/uploads/assets/ABC/legacy.jpg",
+    expiresAt: null
+  });
+  assert.equal(providerCalls, 0);
+  assert.equal(assetFile.filePath, "/uploads/assets/ABC/legacy.jpg");
+});
+
+test("le resolveur conserve une nouvelle ligne LOCAL sans appel Storage", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  let providerCalls = 0;
+  const result = await resolveAssetFileAccess({
+    id: "new-local",
+    storageProvider: "LOCAL",
+    storageBucket: null,
+    storageKey: "ABC/new.jpg",
+    filePath: "/uploads/assets/ABC/new.jpg"
+  }, {
+    getStorageProvider: () => {
+      providerCalls += 1;
+      throw new Error("Storage ne doit pas etre appele.");
+    }
+  });
+  assert.equal(result.provider, "LOCAL");
+  assert.equal(result.url, "/uploads/assets/ABC/new.jpg");
+  assert.equal(result.expiresAt, null);
+  assert.equal(providerCalls, 0);
+});
+
+test("le resolveur refuse les chemins LOCAL dangereux", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  for (const filePath of [
+    "",
+    "../secret.jpg",
+    "C:\\secret.jpg",
+    "https://example.invalid/file.jpg",
+    "javascript:alert(1)",
+    "data:text/plain,test",
+    "/uploads/assets/../secret.jpg"
+  ]) {
+    await assert.rejects(resolveAssetFileAccess({
+      id: "unsafe-local",
+      storageProvider: null,
+      storageBucket: null,
+      storageKey: null,
+      filePath
+    }));
+  }
+});
+
+test("le resolveur SUPABASE signe une fois avec bucket, cle et TTL controles", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  const calls = [];
+  const fixedNow = Date.parse("2026-07-30T12:00:00.000Z");
+  const storage = {
+    getBucketName: () => "asset-files",
+    async createSignedDownloadUrl(key, ttl) {
+      calls.push({ key, ttl });
+      return {
+        url: "https://example.invalid/storage/signed/fake",
+        expiresAt: new Date(fixedNow + ttl * 1000)
+      };
+    }
+  };
+  const assetFile = {
+    id: "supabase-file",
+    storageProvider: "SUPABASE",
+    storageBucket: "asset-files",
+    storageKey: "assets/units/unit/file/file.txt",
+    filePath: "assets/units/unit/file/file.txt"
+  };
+  const result = await resolveAssetFileAccess(assetFile, {
+    getStorageProvider: (name) => {
+      assert.equal(name, "supabase");
+      return storage;
+    },
+    signedUrlTtlSeconds: 300,
+    now: () => fixedNow
+  });
+  assert.equal(result.provider, "SUPABASE");
+  assert.equal(result.url, "https://example.invalid/storage/signed/fake");
+  assert.equal(result.expiresAt.toISOString(), "2026-07-30T12:05:00.000Z");
+  assert.deepEqual(calls, [{
+    key: "assets/units/unit/file/file.txt",
+    ttl: 300
+  }]);
+  assert.equal(assetFile.filePath, assetFile.storageKey);
+});
+
+test("les metadonnees SUPABASE incoherentes sont refusees avant le SDK", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  let providerCalls = 0;
+  const invalidFiles = [
+    { storageBucket: null, storageKey: "assets/file.txt", filePath: "assets/file.txt" },
+    { storageBucket: "asset-files", storageKey: null, filePath: "assets/file.txt" },
+    { storageBucket: "asset-files", storageKey: "/assets/file.txt", filePath: "/assets/file.txt" },
+    { storageBucket: "asset-files", storageKey: "../file.txt", filePath: "../file.txt" },
+    { storageBucket: "asset-files", storageKey: "https://example.invalid/file", filePath: "https://example.invalid/file" },
+    { storageBucket: "asset-files", storageKey: "assets/file.txt?token=fake", filePath: "assets/file.txt?token=fake" },
+    { storageBucket: "asset-files", storageKey: "assets/file.txt#fragment", filePath: "assets/file.txt#fragment" },
+    { storageBucket: "asset-files", storageKey: "assets\\file.txt", filePath: "assets\\file.txt" },
+    { storageBucket: "asset-files", storageKey: "assets/file.txt", filePath: "different/file.txt" }
+  ];
+  for (const invalid of invalidFiles) {
+    await assert.rejects(resolveAssetFileAccess({
+      id: "invalid-supabase",
+      storageProvider: "SUPABASE",
+      ...invalid
+    }, {
+      getStorageProvider: () => {
+        providerCalls += 1;
+        return {};
+      }
+    }));
+  }
+  assert.equal(providerCalls, 0);
+});
+
+test("un bucket SUPABASE different de la configuration est refuse sans signature", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  let signed = 0;
+  await assert.rejects(resolveAssetFileAccess({
+    id: "wrong-bucket",
+    storageProvider: "SUPABASE",
+    storageBucket: "other-bucket",
+    storageKey: "assets/file.txt",
+    filePath: "assets/file.txt"
+  }, {
+    getStorageProvider: () => ({
+      getBucketName: () => "asset-files",
+      createSignedDownloadUrl: async () => {
+        signed += 1;
+      }
+    })
+  }), /Bucket AssetFile incoherent/);
+  assert.equal(signed, 0);
+});
+
+test("une erreur de signature SUPABASE reste controlee et sans secret", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  const secret = "test-only-secret";
+  await assert.rejects(resolveAssetFileAccess({
+    id: "signature-error",
+    storageProvider: "SUPABASE",
+    storageBucket: "asset-files",
+    storageKey: "assets/file.txt",
+    filePath: "assets/file.txt"
+  }, {
+    getStorageProvider: () => ({
+      getBucketName: () => "asset-files",
+      createSignedDownloadUrl: async () => {
+        throw new Error("Signature Storage impossible (erreur reseau).");
+      }
+    })
+  }), (error) => {
+    assert.doesNotMatch(error.message, new RegExp(secret));
+    assert.match(error.message, /Signature Storage impossible/);
+    return true;
+  });
+});
+
+test("le resolveur serveur rejette un environnement navigateur avant le client", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  let providerCalls = 0;
+  await assert.rejects(resolveAssetFileAccess({
+    id: "browser-file",
+    storageProvider: "SUPABASE",
+    storageBucket: "asset-files",
+    storageKey: "assets/file.txt",
+    filePath: "assets/file.txt"
+  }, {
+    runtime: { window: {} },
+    getStorageProvider: () => {
+      providerCalls += 1;
+    }
+  }), /reservee au serveur/);
+  assert.equal(providerCalls, 0);
+});
+
+test("la resolution signee reste en memoire et ne persiste aucune valeur", async () => {
+  const { resolveAssetFileAccess } = await loadAssetFileAccessResolver();
+  const assetFile = Object.freeze({
+    id: "immutable-file",
+    storageProvider: "SUPABASE",
+    storageBucket: "asset-files",
+    storageKey: "assets/file.txt",
+    filePath: "assets/file.txt"
+  });
+  let prismaWrites = 0;
+  const result = await resolveAssetFileAccess(assetFile, {
+    getStorageProvider: () => ({
+      getBucketName: () => "asset-files",
+      createSignedDownloadUrl: async () => ({
+        url: "https://example.invalid/storage/signed/fake",
+        expiresAt: new Date()
+      })
+    })
+  });
+  assert.equal(result.url.includes("signed"), true);
+  assert.equal(assetFile.filePath, "assets/file.txt");
+  assert.equal(assetFile.storageKey, "assets/file.txt");
+  assert.equal(prismaWrites, 0);
+  assert.equal("expiresAt" in assetFile, false);
+});
