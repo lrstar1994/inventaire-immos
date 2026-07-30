@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { register } from "node:module";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   DEFAULT_SIGNED_URL_EXPIRY_SECONDS,
@@ -12,6 +14,11 @@ import {
   normalizeStorageKey
 } from "../lib/storage/storage-key.js";
 import { createStorageProviderFactory } from "../lib/storage/storage-provider-factory.js";
+import {
+  persistWithStorageCompensation,
+  resolveAssetFileStorage,
+  storedObjectToAssetFileData
+} from "../lib/storage/asset-storage-metadata.js";
 
 const SERVER_ONLY_LOADER = `
 export async function resolve(specifier, context, nextResolve) {
@@ -89,6 +96,171 @@ test("les cles absolues et traversals sont rejetes", () => {
   assert.throws(() => normalizeStorageKey("../secret.pdf"), /Cle de stockage/);
   assert.throws(() => normalizeStorageKey("/absolute/file.pdf"), /absolue/);
   assert.throws(() => normalizeStorageKey("C:\\absolute\\file.pdf"), /absolue/);
+});
+
+test("le resultat LOCAL canonique fournit les metadonnees persistables", () => {
+  const data = storedObjectToAssetFileData({
+    provider: "LOCAL",
+    bucket: null,
+    key: "ABC/ABC-uuid-photo.jpg",
+    filePath: "/uploads/assets/ABC/ABC-uuid-photo.jpg"
+  });
+  assert.deepEqual(data, {
+    storageProvider: "LOCAL",
+    storageBucket: null,
+    storageKey: "ABC/ABC-uuid-photo.jpg",
+    filePath: "/uploads/assets/ABC/ABC-uuid-photo.jpg"
+  });
+  assert.equal(data.storageKey.split("/").at(-1), "ABC-uuid-photo.jpg");
+});
+
+test("le provider LOCAL retourne le contrat canonique sans toucher au dossier public", async () => {
+  const { LocalFileStorageProvider } = await import("../lib/storage/local-file-storage-provider.js");
+  const rootDirectory = await mkdtemp(path.join(tmpdir(), "phase10d-b-local-"));
+  const provider = new LocalFileStorageProvider({ rootDirectory });
+  try {
+    const bytes = Buffer.from("%PDF-test", "ascii");
+    const result = await provider.putObject({
+      storageKey: "ABC/ABC-uuid-document.pdf",
+      bytes,
+      contentType: "application/pdf",
+      originalFilename: "document.pdf",
+      size: bytes.length
+    });
+    assert.equal(result.provider, "LOCAL");
+    assert.equal(result.bucket, null);
+    assert.equal(result.key, "ABC/ABC-uuid-document.pdf");
+    assert.equal(result.storageKey, result.key);
+    assert.equal(result.filePath, "/uploads/assets/ABC/ABC-uuid-document.pdf");
+    assert.equal(result.databasePath, result.filePath);
+    assert.equal(await provider.objectExists(result.key), true);
+    assert.equal(await provider.deleteObject(result.key), true);
+    assert.equal(await provider.objectExists(result.key), false);
+  } finally {
+    await rm(rootDirectory, { recursive: true, force: true });
+  }
+});
+
+test("une ancienne ligne locale sans metadonnees reste reconnue", () => {
+  assert.deepEqual(
+    resolveAssetFileStorage({
+      storageProvider: null,
+      storageBucket: null,
+      storageKey: null,
+      filePath: "/uploads/assets/ABC/legacy.jpg"
+    }),
+    {
+      provider: "LOCAL",
+      bucket: null,
+      key: null,
+      filePath: "/uploads/assets/ABC/legacy.jpg",
+      legacy: true
+    }
+  );
+});
+
+test("les etats de metadonnees Storage incoherents sont rejetes", () => {
+  assert.throws(
+    () => resolveAssetFileStorage({
+      storageProvider: "SUPABASE",
+      storageBucket: null,
+      storageKey: "assets/file.jpg",
+      filePath: "assets/file.jpg"
+    }),
+    /SUPABASE incomplet/
+  );
+  assert.throws(
+    () => resolveAssetFileStorage({
+      storageProvider: "SUPABASE",
+      storageBucket: "asset-files",
+      storageKey: null,
+      filePath: "assets/file.jpg"
+    }),
+    /SUPABASE incomplet/
+  );
+  assert.throws(
+    () => resolveAssetFileStorage({
+      storageProvider: "LOCAL",
+      storageBucket: "asset-files",
+      storageKey: "assets/file.jpg",
+      filePath: "/uploads/assets/assets/file.jpg"
+    }),
+    /LOCAL incoherent/
+  );
+  assert.throws(
+    () => resolveAssetFileStorage({
+      storageProvider: "LOCAL",
+      storageBucket: null,
+      storageKey: "../file.jpg",
+      filePath: "/uploads/assets/../file.jpg"
+    }),
+    /Cle de stockage/
+  );
+});
+
+test("un echec Prisma declenche exactement une compensation et conserve l'erreur", async () => {
+  const persistenceError = new Error("Prisma transaction failed");
+  const deletedKeys = [];
+  const storage = {
+    async deleteObject(storageKey) {
+      deletedKeys.push(storageKey);
+      return true;
+    }
+  };
+  const storedObject = {
+    provider: "LOCAL",
+    bucket: null,
+    key: "ABC/new-file.jpg",
+    filePath: "/uploads/assets/ABC/new-file.jpg"
+  };
+
+  await assert.rejects(
+    persistWithStorageCompensation({
+      storage,
+      storedObject,
+      persist: async () => {
+        throw persistenceError;
+      }
+    }),
+    (error) => error === persistenceError
+  );
+  assert.deepEqual(deletedKeys, ["ABC/new-file.jpg"]);
+});
+
+test("un echec de compensation est journalise sans remplacer l'erreur Prisma", async () => {
+  const persistenceError = new Error("Prisma transaction failed");
+  const logs = [];
+  const storage = {
+    async deleteObject() {
+      const error = new Error("disk unavailable");
+      error.name = "StorageProviderError";
+      throw error;
+    }
+  };
+  const storedObject = {
+    provider: "LOCAL",
+    bucket: null,
+    key: "ABC/new-file.jpg",
+    filePath: "/uploads/assets/ABC/new-file.jpg"
+  };
+
+  await assert.rejects(
+    persistWithStorageCompensation({
+      storage,
+      storedObject,
+      persist: async () => {
+        throw persistenceError;
+      },
+      logCompensationFailure: (details) => logs.push(details)
+    }),
+    (error) => error === persistenceError
+  );
+  assert.deepEqual(logs, [{
+    provider: "LOCAL",
+    bucket: null,
+    storageKey: "ABC/new-file.jpg",
+    errorType: "StorageProviderError"
+  }]);
 });
 
 test("les URL signees expirent par defaut apres cinq minutes", () => {
