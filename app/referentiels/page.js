@@ -1,10 +1,14 @@
 import Link from "next/link";
+import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
+import { authorizePrivatePage } from "@/lib/authorization-page";
 import ReferenceManager from "./reference-manager";
 
 export const metadata = {
   title: "Referentiels | Inventaire Immos"
 };
+
+export const dynamic = "force-dynamic";
 
 const validTabs = new Set(["suppliers", "locations", "categories", "items"]);
 
@@ -38,6 +42,10 @@ async function loadReferenceData() {
 }
 
 export default async function ReferentialsPage({ searchParams }) {
+  const access = await authorizePrivatePage({ returnTo: "/referentiels" });
+  if (access.status !== "authorized") {
+    return <AccessDenied status={access.status} />;
+  }
   const params = await searchParams;
   const active = validTabs.has(params?.tab) ? params.tab : "suppliers";
   const initialData = await loadReferenceData();

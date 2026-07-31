@@ -1,9 +1,12 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { jsonError, jsonOk } from "@/lib/api";
 import { getRequestUser } from "@/lib/request-user";
 import { canManageMovements } from "@/lib/roles";
 import { validateMovement } from "@/lib/movement-service";
 
 export async function POST(request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canManageMovements(actor.role)) {
     return jsonError("Droits insuffisants pour valider un mouvement.", 403);

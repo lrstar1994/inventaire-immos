@@ -1,3 +1,4 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { getRequestUser } from "@/lib/request-user";
@@ -5,6 +6,8 @@ import { canCreateMovementDraft } from "@/lib/roles";
 import { auditMovement, createMovement, movementInclude } from "@/lib/movement-service";
 
 export async function GET(request) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const { searchParams } = new URL(request.url);
   const where = {};
   if (searchParams.get("movementStatus")) where.movementStatus = searchParams.get("movementStatus");
@@ -20,6 +23,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canCreateMovementDraft(actor.role)) {
     return jsonError("Droits insuffisants pour creer un mouvement.", 403);

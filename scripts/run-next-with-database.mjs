@@ -29,6 +29,7 @@ if (provider === "postgresql-recipe") {
   childEnv.SUPABASE_DATABASE_URL = recipeUrl.toString();
   childEnv.APP_DATABASE_RECIPE_PHASE8 = "true";
   childEnv.APP_PRISMA_CLIENT = "recipe";
+  childEnv.RECIPE_PREFLIGHT_DEVELOPMENT = command === "dev" ? "1" : "0";
   const preflight = spawnSync(process.execPath, [path.resolve(process.cwd(), "scripts", "preflight-postgresql-recipe.mjs")], {
     cwd: process.cwd(),
     env: childEnv,

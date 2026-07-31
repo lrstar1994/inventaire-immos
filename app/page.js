@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import AccessDenied from "@/app/components/access-denied";
+import { authorizePrivatePage } from "@/lib/authorization-page";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +122,10 @@ const modules = [
 ];
 
 export default async function HomePage() {
+  const access = await authorizePrivatePage({ returnTo: "/" });
+  if (access.status !== "authorized") {
+    return <AccessDenied status={access.status} />;
+  }
   const data = await getDashboardData();
 
   const metrics = [

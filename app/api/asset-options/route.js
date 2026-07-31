@@ -1,9 +1,12 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonOk } from "@/lib/api";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, ENTRY_TYPES, INFORMATION_STATUSES } from "@/lib/asset-constants";
 import { assetFileOptions } from "@/lib/asset-file-service";
 
 export async function GET() {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const [assetItems, assetCategories, locations, suppliers] = await Promise.all([
     prisma.assetItem.findMany({
       where: { status: "ACTIVE", deletedAt: null },

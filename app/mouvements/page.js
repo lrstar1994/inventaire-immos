@@ -1,5 +1,7 @@
 import Link from "next/link";
+import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
+import { authorizePrivatePage } from "@/lib/authorization-page";
 import { MOVEMENT_STATUSES, MOVEMENT_TYPES } from "@/lib/movement-constants";
 import { movementInclude } from "@/lib/movement-service";
 import MovementManager from "./movement-manager";
@@ -58,6 +60,10 @@ async function loadMovementData() {
 }
 
 export default async function MovementsPage() {
+  const access = await authorizePrivatePage({ returnTo: "/mouvements" });
+  if (access.status !== "authorized") {
+    return <AccessDenied status={access.status} />;
+  }
   const initialData = await loadMovementData();
 
   return (

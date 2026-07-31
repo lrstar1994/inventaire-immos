@@ -1,5 +1,7 @@
 import Link from "next/link";
+import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
+import { authorizePrivatePage } from "@/lib/authorization-page";
 import { ENTRY_TYPES } from "@/lib/asset-constants";
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES } from "@/lib/document-constants";
 import DocumentManager from "./document-manager";
@@ -55,6 +57,10 @@ async function loadDocumentData() {
 }
 
 export default async function DocumentsPage() {
+  const access = await authorizePrivatePage({ returnTo: "/documents" });
+  if (access.status !== "authorized") {
+    return <AccessDenied status={access.status} />;
+  }
   const initialData = await loadDocumentData();
 
   return (

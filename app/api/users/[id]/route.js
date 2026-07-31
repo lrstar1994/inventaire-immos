@@ -1,3 +1,5 @@
+import { APP_PERMISSIONS } from "@/lib/authorization";
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { canManageUsers } from "@/lib/roles";
@@ -7,6 +9,8 @@ import { writeAuditLog } from "@/lib/audit";
 const allowedRoles = ["DIRECTION", "INVENTORY_MANAGER", "MAINTENANCE_MANAGER", "BASIC_USER"];
 
 export async function GET(_request, { params }) {
+  const authorization = await authorizeApiRequest(APP_PERMISSIONS.USERS_MANAGE);
+  if (authorization.response) return authorization.response;
   const { id } = await params;
   const user = await prisma.user.findFirst({
     where: { id, deletedAt: null },
@@ -31,6 +35,8 @@ export async function GET(_request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  const authorization = await authorizeApiRequest(APP_PERMISSIONS.USERS_MANAGE);
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
 
   if (!actor || !canManageUsers(actor.role)) {
@@ -71,6 +77,8 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  const authorization = await authorizeApiRequest(APP_PERMISSIONS.USERS_MANAGE);
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
 
   if (!actor || !canManageUsers(actor.role)) {

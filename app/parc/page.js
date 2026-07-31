@@ -1,5 +1,7 @@
 import Link from "next/link";
+import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
+import { authorizePrivatePage } from "@/lib/authorization-page";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, ENTRY_TYPES, INFORMATION_STATUSES } from "@/lib/asset-constants";
 import { assetFileOptions } from "@/lib/asset-file-service";
 import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
@@ -96,6 +98,10 @@ async function loadParkData() {
 }
 
 export default async function ParkPage() {
+  const access = await authorizePrivatePage({ returnTo: "/parc" });
+  if (access.status !== "authorized") {
+    return <AccessDenied status={access.status} />;
+  }
   const initialData = await loadParkData();
 
   return (

@@ -1,8 +1,11 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api";
 import { findPotentialAssetDuplicates, summarizeDuplicateUnit } from "@/lib/asset-service";
 
 export async function GET(request) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const { searchParams } = new URL(request.url);
   const assetItemId = searchParams.get("assetItemId");
   const locationId = searchParams.get("locationId");

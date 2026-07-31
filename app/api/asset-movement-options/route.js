@@ -1,8 +1,11 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonOk } from "@/lib/api";
 import { MOVEMENT_STATUSES, MOVEMENT_TYPES } from "@/lib/movement-constants";
 
 export async function GET() {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const [assetUnits, locations, assetCategories, assetItems] = await Promise.all([
     prisma.assetUnit.findMany({
       where: { deletedAt: null, status: { not: "RETIRED" } },

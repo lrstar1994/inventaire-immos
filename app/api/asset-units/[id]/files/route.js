@@ -1,9 +1,12 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api";
 import { assetFileOptions } from "@/lib/asset-file-service";
 import { toAssetFileAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 export async function GET(request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const { id } = await params;
   const unit = await prisma.assetUnit.findFirst({
     where: { id, deletedAt: null },

@@ -1,3 +1,4 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { getRequestUser } from "@/lib/request-user";
@@ -5,6 +6,8 @@ import { canManageAssetDocuments } from "@/lib/roles";
 import { auditDocument, documentInclude, logSensitiveAttempt } from "@/lib/document-service";
 
 export async function POST(request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canManageAssetDocuments(actor.role)) {
     return jsonError("Droits insuffisants pour annuler un document.", 403);

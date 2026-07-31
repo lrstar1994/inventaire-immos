@@ -1,3 +1,4 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { getRequestUser } from "@/lib/request-user";
@@ -5,6 +6,8 @@ import { canManageAssetDocuments } from "@/lib/roles";
 import { auditDocument, documentInclude, parseDocumentDate } from "@/lib/document-service";
 
 export async function GET(_request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const { id } = await params;
   const document = await prisma.assetDocument.findUnique({ where: { id }, include: documentInclude() });
   if (!document) return jsonError("Document introuvable.", 404);
@@ -12,6 +15,8 @@ export async function GET(_request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canManageAssetDocuments(actor.role)) {
     return jsonError("Droits insuffisants pour modifier un document.", 403);

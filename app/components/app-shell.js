@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { logoutAction } from "@/app/connexion/actions";
 import ActiveNavLink from "./active-nav-link";
 import HelpPanel from "./help-panel";
 
@@ -109,6 +110,10 @@ export default function AppShell({ children }) {
           <div className="header-actions">
             <span className="header-help">Aide</span>
             <span className="header-date">{today}</span>
+            <form action={logoutAction}>
+              <input name="locale" type="hidden" value="fr" />
+              <button className="header-help" type="submit">Déconnexion</button>
+            </form>
           </div>
         </header>
         {children}

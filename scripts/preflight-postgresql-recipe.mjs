@@ -1,10 +1,10 @@
 import { Prisma, PrismaClient } from "../generated/prisma-recipe/index.js";
+import {
+  assertPostgreSQLRecipeProtectedBaseline,
+  POSTGRESQL_RECIPE_PROTECTED_BASELINE
+} from "./postgresql-recipe-protected-baseline.mjs";
 
 const EXPECTED_SCHEMA = "immos_recipe_phase8";
-const expectedRecipeTotal = Number.parseInt(process.env.RECIPE_EXPECTED_TOTAL_ROWS || "222", 10);
-if (!Number.isInteger(expectedRecipeTotal) || expectedRecipeTotal < 0) {
-  throw new Error("Prévol recette refusé : RECIPE_EXPECTED_TOTAL_ROWS invalide.");
-}
 if (process.env.APP_DATABASE_PROVIDER !== "postgresql") {
   throw new Error("Prévol recette refusé : APP_DATABASE_PROVIDER doit valoir postgresql.");
 }
@@ -30,6 +30,28 @@ if (modelSchemas.length !== 1 || modelSchemas[0] !== EXPECTED_SCHEMA) {
   throw new Error("Prévol recette refusé : le client généré chargé n'est pas le client recipe.");
 }
 
+const skipNetworkPreflight = process.env.RECIPE_SKIP_PREFLIGHT === "1";
+if (skipNetworkPreflight && process.env.RECIPE_PREFLIGHT_DEVELOPMENT !== "1") {
+  throw new Error(
+    "Prevol recette refuse : RECIPE_SKIP_PREFLIGHT=1 est autorise uniquement par la commande de developpement."
+  );
+}
+if (skipNetworkPreflight) {
+  console.warn([
+    "",
+    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+    "AVERTISSEMENT : PREVOL RESEAU POSTGRESQL RECIPE VOLONTAIREMENT IGNORE",
+    "LA RECETTE DISTANTE N'EST PAS VALIDEE DANS CE MODE.",
+    "Les garde-fous de configuration, de schema et de client restent actifs.",
+    "L'application peut demarrer, mais les pages PostgreSQL echoueront tant que",
+    "la connectivite Supabase ne sera pas retablie. SQLite locale n'est pas concernee.",
+    "Aucune donnee n'a ete modifiee par ce contournement.",
+    "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
+    ""
+  ].join("\n"));
+  process.exit(0);
+}
+
 const prisma = new PrismaClient({ datasourceUrl: url.toString(), errorFormat: "minimal" });
 const TABLES = [
   "users", "suppliers", "locations", "asset_categories", "asset_items", "asset_entries",
@@ -37,7 +59,17 @@ const TABLES = [
   "asset_document_entries", "asset_document_lines", "sensitive_action_approvals", "audit_logs"
 ];
 try {
-  const [schema] = await prisma.$queryRaw`SELECT current_schema() AS schema`;
+  let schema;
+  try {
+    [schema] = await prisma.$queryRaw`SELECT current_schema() AS schema`;
+  } catch {
+    throw new Error([
+      "Prevol recette refuse : impossible de joindre PostgreSQL Supabase.",
+      "Cause probable : probleme reseau ou connectivite PostgreSQL temporairement indisponible.",
+      "SQLite locale n'est pas concernee et reste utilisable.",
+      "Aucune donnee n'a ete modifiee."
+    ].join(" "));
+  }
   if (schema.schema !== EXPECTED_SCHEMA) {
     throw new Error(`Prévol recette refusé : current_schema=${schema.schema}.`);
   }
@@ -48,9 +80,39 @@ try {
     );
     totals[targetSchema] = row.total;
   }
-  if (totals[EXPECTED_SCHEMA] !== expectedRecipeTotal || totals.immos !== 222) {
-    throw new Error(`Prévol recette refusé : totaux attendus ${expectedRecipeTotal}/222, obtenus ${totals[EXPECTED_SCHEMA]}/${totals.immos}.`);
-  }
+  const [protectedCounts] = await prisma.$queryRawUnsafe(`
+    SELECT
+      (SELECT COUNT(*)::int FROM "immos_recipe_phase8"."asset_units") AS recipe_asset_units,
+      (SELECT COUNT(*)::int FROM "immos_recipe_phase8"."asset_files") AS recipe_asset_files,
+      (SELECT COUNT(*)::int FROM "immos"."asset_units") AS production_asset_units,
+      (SELECT COUNT(*)::int FROM "immos"."asset_files") AS production_asset_files,
+      (
+        (SELECT COUNT(*) FROM "immos_recipe_phase8"."asset_files" f
+          LEFT JOIN "immos_recipe_phase8"."asset_units" u ON u.id=f.asset_unit_id
+          WHERE u.id IS NULL)
+        + (SELECT COUNT(*) FROM "immos_recipe_phase8"."asset_movement_lines" l
+          LEFT JOIN "immos_recipe_phase8"."asset_movements" m ON m.id=l.movement_id
+          LEFT JOIN "immos_recipe_phase8"."asset_units" u ON u.id=l.asset_unit_id
+          WHERE m.id IS NULL OR u.id IS NULL)
+        + (SELECT COUNT(*) FROM "immos_recipe_phase8"."asset_document_entries" e
+          LEFT JOIN "immos_recipe_phase8"."asset_documents" d ON d.id=e.document_id
+          LEFT JOIN "immos_recipe_phase8"."asset_entries" source ON source.id=e.asset_entry_id
+          WHERE d.id IS NULL OR source.id IS NULL)
+        + (SELECT COUNT(*) FROM "immos_recipe_phase8"."asset_document_lines" l
+          LEFT JOIN "immos_recipe_phase8"."asset_documents" d ON d.id=l.document_id
+          LEFT JOIN "immos_recipe_phase8"."asset_units" u ON u.id=l.asset_unit_id
+          WHERE d.id IS NULL OR (l.asset_unit_id IS NOT NULL AND u.id IS NULL))
+      )::int AS recipe_foreign_key_orphans
+  `);
+  const snapshot = assertPostgreSQLRecipeProtectedBaseline({
+    recipeTotal: totals[EXPECTED_SCHEMA],
+    productionTotal: totals.immos,
+    recipeAssetUnits: protectedCounts.recipe_asset_units,
+    recipeAssetFiles: protectedCounts.recipe_asset_files,
+    productionAssetUnits: protectedCounts.production_asset_units,
+    productionAssetFiles: protectedCounts.production_asset_files,
+    recipeForeignKeyOrphans: protectedCounts.recipe_foreign_key_orphans
+  });
   console.log(JSON.stringify({
     result: "RECIPE_PREFLIGHT_OK",
     provider: "postgresql",
@@ -58,7 +120,9 @@ try {
     generatedClient: "generated/prisma-recipe",
     modelSchema: modelSchemas[0],
     currentSchema: schema.schema,
-    totals
+    totals,
+    protectedBaseline: POSTGRESQL_RECIPE_PROTECTED_BASELINE,
+    protectedSnapshot: snapshot
   }, null, 2));
 } finally {
   await prisma.$disconnect();

@@ -1,3 +1,4 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { ASSET_CONDITIONS, ASSET_STATUSES, INFORMATION_STATUSES, isAllowed } from "@/lib/asset-constants";
@@ -33,6 +34,8 @@ const include = {
 };
 
 export async function GET(_request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const { id } = await params;
   const unit = await prisma.assetUnit.findFirst({ where: { id, deletedAt: null }, include });
   if (!unit) return jsonError("Bien introuvable.", 404);
@@ -41,6 +44,8 @@ export async function GET(_request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canManageAssets(actor.role)) {
     return jsonError("Droits insuffisants pour modifier un bien.", 403);
@@ -86,6 +91,8 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canManageAssets(actor.role)) {
     return jsonError("Droits insuffisants pour desactiver un bien.", 403);

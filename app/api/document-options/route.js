@@ -1,9 +1,12 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonOk } from "@/lib/api";
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES } from "@/lib/document-constants";
 import { ENTRY_TYPES } from "@/lib/asset-constants";
 
 export async function GET() {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const [entries, assetUnits, assetItems, locations, suppliers] = await Promise.all([
     prisma.assetEntry.findMany({
       include: {

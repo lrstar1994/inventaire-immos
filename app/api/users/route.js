@@ -1,3 +1,5 @@
+import { APP_PERMISSIONS } from "@/lib/authorization";
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { canManageUsers } from "@/lib/roles";
@@ -7,6 +9,8 @@ import { writeAuditLog } from "@/lib/audit";
 const allowedRoles = ["DIRECTION", "INVENTORY_MANAGER", "MAINTENANCE_MANAGER", "BASIC_USER"];
 
 export async function GET() {
+  const authorization = await authorizeApiRequest(APP_PERMISSIONS.USERS_MANAGE);
+  if (authorization.response) return authorization.response;
   const users = await prisma.user.findMany({
     where: { deletedAt: null },
     orderBy: { name: "asc" },
@@ -27,6 +31,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const authorization = await authorizeApiRequest(APP_PERMISSIONS.USERS_MANAGE);
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
 
   if (!actor || !canManageUsers(actor.role)) {

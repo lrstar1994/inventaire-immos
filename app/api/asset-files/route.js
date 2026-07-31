@@ -1,3 +1,4 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk } from "@/lib/api";
 import { assetFileInclude, assetFileOptions, saveAssetFileFromForm } from "@/lib/asset-file-service";
@@ -6,6 +7,8 @@ import { canUploadAssetFiles } from "@/lib/roles";
 import { toAssetFileAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 export async function GET(request) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const { searchParams } = new URL(request.url);
   const where = {};
   if (searchParams.get("assetUnitId")) where.assetUnitId = searchParams.get("assetUnitId");
@@ -25,6 +28,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canUploadAssetFiles(actor.role)) {
     return jsonError("Utilisateur non autorise.", 403);

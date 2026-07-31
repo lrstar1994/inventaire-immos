@@ -1,3 +1,4 @@
+import { authorizeApiRequest } from "@/lib/authorization-http";
 import { assertActiveDatabaseSchema, prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, INFORMATION_STATUSES, isAllowed } from "@/lib/asset-constants";
@@ -14,6 +15,8 @@ const include = {
 };
 
 export async function GET(_request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const { id } = await params;
   const entry = await prisma.assetEntry.findUnique({ where: { id }, include });
   if (!entry) return jsonError("Entree introuvable.", 404);
@@ -21,6 +24,8 @@ export async function GET(_request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  const authorization = await authorizeApiRequest();
+  if (authorization.response) return authorization.response;
   const actor = await getRequestUser(request);
   if (!actor || !canManageAssets(actor.role)) {
     return jsonError("Droits insuffisants pour modifier une entree de parc.", 403);
