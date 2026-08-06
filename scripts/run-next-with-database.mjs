@@ -16,6 +16,18 @@ const args = command === "dev"
   : [command, ...forwardedArgs];
 const childEnv = { ...process.env, APP_DATABASE_PROVIDER: provider === "sqlite" ? "sqlite" : "postgresql" };
 childEnv.APP_PRISMA_CLIENT = provider === "sqlite" ? "sqlite" : "normal";
+if (provider === "postgresql") {
+  const env = await loadSupabaseEnv();
+  childEnv.SUPABASE_DATABASE_URL = env.SUPABASE_DATABASE_URL;
+  const preflight = spawnSync(process.execPath, [path.resolve(process.cwd(), "scripts", "preflight-postgresql-production.mjs")], {
+    cwd: process.cwd(),
+    env: childEnv,
+    stdio: "inherit"
+  });
+  if (preflight.status !== 0) {
+    throw new Error("Démarrage Production refusé par le prévol de sécurité.");
+  }
+}
 if (provider === "postgresql-recipe") {
   const env = await loadSupabaseEnv();
   const recipeUrl = new URL(env.SUPABASE_DIRECT_URL);

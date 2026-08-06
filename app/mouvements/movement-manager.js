@@ -60,7 +60,7 @@ const RETURN_DEPARTURE_TYPES = {
   RETURN_FROM_WORKSHOP_REPAIR: "WORKSHOP_REPAIR"
 };
 
-export default function MovementManager({ initialOptions = null, initialMovements = [] }) {
+export default function MovementManager({ canCreate = false, canManage = false, initialOptions = null, initialMovements = [] }) {
   const [options, setOptions] = useState(initialOptions);
   const [movements, setMovements] = useState(initialMovements);
   const [selectedMovement, setSelectedMovement] = useState(null);
@@ -341,7 +341,7 @@ export default function MovementManager({ initialOptions = null, initialMovement
           </div>
         </section>
 
-        <aside className="panel">
+        {canCreate ? <aside className="panel">
           <h2>Nouveau mouvement</h2>
           <p className="summary">Le brouillon n'applique aucun changement d'emplacement avant validation.</p>
           <form className="form" onSubmit={createMovement}>
@@ -386,7 +386,7 @@ export default function MovementManager({ initialOptions = null, initialMovement
             {returnProposal ? <p className="form-message">{returnProposal}</p> : null}
             <button className="button" type="submit">Creer le brouillon</button>
           </form>
-        </aside>
+        </aside> : null}
       </div>
 
       <div className="reference-grid detail-row">
@@ -544,12 +544,12 @@ export default function MovementManager({ initialOptions = null, initialMovement
                   </li>
                 ))}
               </ul>
-              {selectedMovement.movementStatus === "DRAFT" ? (
+              {canManage && selectedMovement.movementStatus === "DRAFT" ? (
                 <div className="form-actions">
                   <button type="button" onClick={validateMovement}>Valider</button>
                 </div>
               ) : null}
-              {selectedMovement.movementStatus === "DRAFT" ? (
+              {canManage && selectedMovement.movementStatus === "DRAFT" ? (
                 <div className="form cancel-box">
                   <label>
                     <span>Motif d'annulation</span>

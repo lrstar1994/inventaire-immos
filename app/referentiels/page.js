@@ -2,6 +2,7 @@ import Link from "next/link";
 import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
 import { authorizePrivatePage } from "@/lib/authorization-page";
+import { APP_PERMISSIONS, hasPermission } from "@/lib/authorization";
 import ReferenceManager from "./reference-manager";
 
 export const metadata = {
@@ -64,7 +65,7 @@ export default async function ReferentialsPage({ searchParams }) {
           Accueil
         </Link>
       </div>
-      <ReferenceManager initialActive={active} initialData={initialData} />
+      <ReferenceManager canWrite={hasPermission(access.user, APP_PERMISSIONS.REFERENTIALS_WRITE)} initialActive={active} initialData={initialData} />
     </main>
   );
 }

@@ -61,6 +61,7 @@ function prismaWith(matches) {
 function user(overrides = {}) {
   return {
     id: "app-user-1",
+    name: "Utilisateur de recette",
     externalAuthId: "auth-user-1",
     authProvider: "supabase",
     status: "ACTIVE",

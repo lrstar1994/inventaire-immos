@@ -53,7 +53,7 @@ function categoryPath(categories, categoryId) {
   return path.length ? path.join(" > ") : "Categorie non renseignee";
 }
 
-export default function AssetUnitDetail({ assetUnitId }) {
+export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUpload = false, canManageFiles = false }) {
   const [options, setOptions] = useState(null);
   const [movementOptions, setMovementOptions] = useState(null);
   const [unit, setUnit] = useState(null);
@@ -347,10 +347,10 @@ export default function AssetUnitDetail({ assetUnitId }) {
                   />
                   <span>{file.fileLabel || file.fileName}</span>
                   <div className="form-actions">
-                    {!file.isPrimary ? (
+                    {canManageFiles && !file.isPrimary ? (
                       <button className="secondary" type="button" onClick={() => setPrimaryAssetFile(file.id)}>Definir principale</button>
                     ) : null}
-                    <button className="secondary" type="button" onClick={() => deleteAssetFile(file.id)}>Supprimer</button>
+                    {canManageFiles ? <button className="secondary" type="button" onClick={() => deleteAssetFile(file.id)}>Supprimer</button> : null}
                   </div>
                 </article>
               ))}
@@ -371,7 +371,7 @@ export default function AssetUnitDetail({ assetUnitId }) {
                       <p className="summary">{Math.round(file.fileSize / 1024)} Ko</p>
                       {file.notes ? <p className="summary">{file.notes}</p> : null}
                       <div className="form-actions">
-                        <button className="secondary" type="button" onClick={() => deleteAssetFile(file.id)}>Supprimer</button>
+                        {canManageFiles ? <button className="secondary" type="button" onClick={() => deleteAssetFile(file.id)}>Supprimer</button> : null}
                       </div>
                     </div>
                   </article>
@@ -414,7 +414,7 @@ export default function AssetUnitDetail({ assetUnitId }) {
                   <input type="checkbox" checked={fileForm.isPrimary} onChange={(event) => setFileForm({ ...fileForm, isPrimary: event.target.checked })} />
                   <span>Definir comme photo principale</span>
                 </label>
-                <button className="secondary" type="button" onClick={submitAssetFile}>Ajouter le fichier</button>
+                {canUpload ? <button className="secondary" type="button" onClick={submitAssetFile}>Ajouter le fichier</button> : null}
               </div>
             </div>
           </div>
@@ -456,7 +456,7 @@ export default function AssetUnitDetail({ assetUnitId }) {
 
       <div className="asset-save-row">
         <Link className="button secondary" href="/parc">Retour au parc</Link>
-        <button className="button" type="submit">Enregistrer la fiche bien</button>
+        {canEdit ? <button className="button" type="submit">Enregistrer la fiche bien</button> : null}
       </div>
     </form>
   );

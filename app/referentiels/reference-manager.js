@@ -85,7 +85,7 @@ function childItems(items, itemId) {
   return items.filter((item) => item.parentId === itemId);
 }
 
-export default function ReferenceManager({ initialActive = "suppliers", initialData = { suppliers: [], locations: [], categories: [], items: [] } }) {
+export default function ReferenceManager({ canWrite = false, initialActive = "suppliers", initialData = { suppliers: [], locations: [], categories: [], items: [] } }) {
   const [active, setActive] = useState(initialActive);
   const [data, setData] = useState(initialData);
   const [query, setQuery] = useState("");
@@ -256,12 +256,12 @@ export default function ReferenceManager({ initialActive = "suppliers", initialD
                     <td><span className={item.status === "ACTIVE" ? "status-badge active" : "status-badge disabled"}>{item.status === "ACTIVE" ? "Actif" : "Inactif"}</span></td>
                     <td>
                       <div className="row-actions">
-                        <button type="button" onClick={() => startEdit(item)}>
+                        {canWrite ? <button type="button" onClick={() => startEdit(item)}>
                           Modifier
-                        </button>
-                        <button type="button" onClick={() => disableItem(item)}>
+                        </button> : null}
+                        {canWrite ? <button type="button" onClick={() => disableItem(item)}>
                           Desactiver
-                        </button>
+                        </button> : null}
                       </div>
                     </td>
                   </tr>
@@ -271,7 +271,7 @@ export default function ReferenceManager({ initialActive = "suppliers", initialD
           </div>
         </section>
 
-        <aside className="panel">
+        {canWrite ? <aside className="panel">
           <h2>{editingId ? "Modifier" : "Creer"}</h2>
           <form className="form" onSubmit={submitForm}>
             {config.fields.map((field) => (
@@ -323,7 +323,7 @@ export default function ReferenceManager({ initialActive = "suppliers", initialD
               </button>
             </div>
           </form>
-        </aside>
+        </aside> : null}
       </div>
 
       <section className="panel detail-row">

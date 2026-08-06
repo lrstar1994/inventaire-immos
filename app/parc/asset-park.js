@@ -68,7 +68,7 @@ function rootCategoryFor(categories, categoryId) {
   return current || null;
 }
 
-export default function AssetPark({ initialOptions = null, initialUnits = [], initialEntries = [] }) {
+export default function AssetPark({ canWrite = false, initialOptions = null, initialUnits = [], initialEntries = [] }) {
   const [options, setOptions] = useState(initialOptions);
   const [units, setUnits] = useState(initialUnits);
   const [entries, setEntries] = useState(initialEntries);
@@ -597,7 +597,7 @@ export default function AssetPark({ initialOptions = null, initialUnits = [], in
           )}
         </section>
 
-        <aside className="panel park-entry-panel">
+        {canWrite ? <aside className="panel park-entry-panel">
           <div className="park-panel-title">
             <h2>Nouvelle entree</h2>
             <p className="summary">Enregistrez un ou plusieurs biens physiques distincts.</p>
@@ -753,7 +753,7 @@ export default function AssetPark({ initialOptions = null, initialUnits = [], in
             {message ? <p className="form-message">{message}</p> : null}
             <button className="button" type="submit">Creer l'entree</button>
           </form>
-        </aside>
+        </aside> : null}
       </div>
 
       <div className="park-detail-grid detail-row">

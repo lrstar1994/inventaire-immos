@@ -29,7 +29,7 @@ const initialForm = {
   notes: ""
 };
 
-export default function DocumentManager({ initialOptions = null, initialDocuments = [] }) {
+export default function DocumentManager({ canWrite = false, initialOptions = null, initialDocuments = [] }) {
   const [options, setOptions] = useState(initialOptions);
   const [documents, setDocuments] = useState(initialDocuments);
   const [selectedDocument, setSelectedDocument] = useState(null);
@@ -198,7 +198,7 @@ export default function DocumentManager({ initialOptions = null, initialDocument
           </div>
         </section>
 
-        <aside className="panel">
+        {canWrite ? <aside className="panel">
           <h2>Nouveau document</h2>
           <p className="summary">Le document est cree en brouillon. Il devra etre valide volontairement.</p>
           <form className="form" onSubmit={createDocument}>
@@ -224,7 +224,7 @@ export default function DocumentManager({ initialOptions = null, initialDocument
             </label>
             <button className="button" type="submit">Creer un document avec les entrees selectionnees</button>
           </form>
-        </aside>
+        </aside> : null}
       </div>
 
       <div className="reference-grid detail-row">
@@ -348,11 +348,11 @@ export default function DocumentManager({ initialOptions = null, initialDocument
                 ))}
               </ul>
               <div className="form-actions">
-                {selectedDocument.status !== "VALIDATED" && selectedDocument.status !== "CANCELLED" ? (
+                {canWrite && selectedDocument.status !== "VALIDATED" && selectedDocument.status !== "CANCELLED" ? (
                   <button type="button" onClick={validateDocument}>Valider</button>
                 ) : null}
               </div>
-              {selectedDocument.status !== "CANCELLED" && selectedDocument.status !== "VALIDATED" ? (
+              {canWrite && selectedDocument.status !== "CANCELLED" && selectedDocument.status !== "VALIDATED" ? (
                 <div className="form cancel-box">
                   <label>
                     <span>Motif d'annulation</span>

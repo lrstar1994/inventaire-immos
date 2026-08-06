@@ -2,6 +2,7 @@ import Link from "next/link";
 import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
 import { authorizePrivatePage } from "@/lib/authorization-page";
+import { APP_PERMISSIONS, hasPermission } from "@/lib/authorization";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, ENTRY_TYPES, INFORMATION_STATUSES } from "@/lib/asset-constants";
 import { assetFileOptions } from "@/lib/asset-file-service";
 import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
@@ -123,7 +124,7 @@ export default async function ParkPage() {
           </Link>
         </div>
       </div>
-      <AssetPark initialOptions={initialData.options} initialUnits={initialData.units} initialEntries={initialData.entries} />
+      <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialEntries={initialData.entries} />
     </main>
   );
 }

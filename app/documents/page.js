@@ -2,6 +2,7 @@ import Link from "next/link";
 import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
 import { authorizePrivatePage } from "@/lib/authorization-page";
+import { APP_PERMISSIONS, hasPermission } from "@/lib/authorization";
 import { ENTRY_TYPES } from "@/lib/asset-constants";
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES } from "@/lib/document-constants";
 import DocumentManager from "./document-manager";
@@ -77,7 +78,7 @@ export default async function DocumentsPage() {
           Retour accueil
         </Link>
       </section>
-      <DocumentManager initialOptions={initialData.options} initialDocuments={initialData.documents} />
+      <DocumentManager canWrite={hasPermission(access.user, APP_PERMISSIONS.DOCUMENTS_WRITE)} initialOptions={initialData.options} initialDocuments={initialData.documents} />
     </main>
   );
 }

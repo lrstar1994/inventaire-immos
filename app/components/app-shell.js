@@ -1,15 +1,37 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/connexion/actions";
+import {
+  APP_PERMISSIONS,
+  getCurrentAppUser,
+  hasPermission
+} from "@/lib/authorization";
 import ActiveNavLink from "./active-nav-link";
 import HelpPanel from "./help-panel";
 
 const navItems = [
-  { href: "/", label: "Tableau de bord", icon: "home" },
-  { href: "/parc", label: "Parc physique", icon: "building" },
-  { href: "/documents", label: "Documents", icon: "document" },
-  { href: "/mouvements", label: "Mouvements", icon: "movement" },
-  { href: "/referentiels", label: "Referentiels", icon: "database" }
+  { href: "/", label: "Tableau de bord", icon: "home", permission: APP_PERMISSIONS.READ },
+  { href: "/parc", label: "Parc physique", icon: "building", permission: APP_PERMISSIONS.READ },
+  { href: "/documents", label: "Documents", icon: "document", permission: APP_PERMISSIONS.READ },
+  { href: "/mouvements", label: "Mouvements", icon: "movement", permission: APP_PERMISSIONS.READ },
+  { href: "/referentiels", label: "Referentiels", icon: "database", permission: APP_PERMISSIONS.READ }
 ];
+
+const roleLabels = Object.freeze({
+  DIRECTION: "Direction",
+  INVENTORY_MANAGER: "Gestionnaire inventaire",
+  MAINTENANCE_MANAGER: "Gestionnaire maintenance",
+  BASIC_USER: "Lecture seule"
+});
+
+export function getUserInitials(name) {
+  return String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
+}
 
 function Icon({ name }) {
   const common = {
@@ -67,7 +89,22 @@ function Icon({ name }) {
   );
 }
 
-export default function AppShell({ children }) {
+export default async function AppShell({ children }) {
+  let access;
+  try {
+    access = await getCurrentAppUser();
+  } catch {
+    access = { status: "authorization_unavailable", user: null };
+  }
+
+  if (access.status !== "authorized") {
+    return children;
+  }
+
+  const appUser = access.user;
+  const visibleNavItems = navItems.filter((item) =>
+    hasPermission(appUser, item.permission)
+  );
   const today = new Intl.DateTimeFormat("fr-FR").format(new Date());
 
   return (
@@ -81,18 +118,18 @@ export default function AppShell({ children }) {
           </span>
         </Link>
         <nav className="side-nav">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <ActiveNavLink href={item.href} key={item.href}>
               <span className="nav-icon"><Icon name={item.icon} /></span>
               <span className="nav-label">{item.label}</span>
             </ActiveNavLink>
           ))}
         </nav>
-        <div className="sidebar-person">
-          <span className="avatar">JR</span>
+        <div className="sidebar-person" data-current-user={appUser.id}>
+          <span className="avatar" aria-hidden="true">{getUserInitials(appUser.name)}</span>
           <span>
-            <strong>Judi Randria</strong>
-            <small>Direction</small>
+            <strong>{appUser.name}</strong>
+            <small>{roleLabels[appUser.role] || "Accès autorisé"}</small>
           </span>
         </div>
         <div className="sidebar-footer">

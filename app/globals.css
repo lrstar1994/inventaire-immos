@@ -2009,9 +2009,23 @@ tbody tr:hover {
     text-align: center;
   }
 
-  .sidebar-footer,
-  .sidebar-person,
+  .sidebar-footer {
+    display: none;
+  }
+
+  .sidebar-person {
+    margin-top: 12px;
+  }
+
   .app-header {
+    display: flex;
+    height: auto;
+    min-height: 58px;
+    padding: 10px 14px;
+  }
+
+  .header-help:not(button),
+  .header-date {
     display: none;
   }
 

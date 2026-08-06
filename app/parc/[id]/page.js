@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AccessDenied from "@/app/components/access-denied";
 import { authorizePrivatePage } from "@/lib/authorization-page";
+import { APP_PERMISSIONS, hasPermission } from "@/lib/authorization";
 import AssetUnitDetail from "./asset-unit-detail";
 
 export const metadata = {
@@ -28,7 +29,12 @@ export default async function AssetUnitPage({ params }) {
           Retour au parc
         </Link>
       </div>
-      <AssetUnitDetail assetUnitId={id} />
+      <AssetUnitDetail
+        assetUnitId={id}
+        canEdit={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)}
+        canUpload={hasPermission(access.user, APP_PERMISSIONS.FILES_UPLOAD)}
+        canManageFiles={hasPermission(access.user, APP_PERMISSIONS.FILES_MANAGE)}
+      />
     </main>
   );
 }

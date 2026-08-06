@@ -2,6 +2,7 @@ import Link from "next/link";
 import AccessDenied from "@/app/components/access-denied";
 import { prisma } from "@/lib/prisma";
 import { authorizePrivatePage } from "@/lib/authorization-page";
+import { APP_PERMISSIONS, hasPermission } from "@/lib/authorization";
 import { MOVEMENT_STATUSES, MOVEMENT_TYPES } from "@/lib/movement-constants";
 import { movementInclude } from "@/lib/movement-service";
 import MovementManager from "./movement-manager";
@@ -80,7 +81,12 @@ export default async function MovementsPage() {
           Retour accueil
         </Link>
       </section>
-      <MovementManager initialOptions={initialData.options} initialMovements={initialData.movements} />
+      <MovementManager
+        canCreate={hasPermission(access.user, APP_PERMISSIONS.MOVEMENTS_CREATE)}
+        canManage={hasPermission(access.user, APP_PERMISSIONS.MOVEMENTS_MANAGE)}
+        initialOptions={initialData.options}
+        initialMovements={initialData.movements}
+      />
     </main>
   );
 }
