@@ -70,12 +70,16 @@ test("les erreurs de validation ne contiennent aucune valeur sensible", async ()
   );
 }));
 
-test("le build PostgreSQL génère le client avant le prévol", async () => {
+test("le build PostgreSQL génère les trois clients statiquement importés avant le prévol", async () => {
   const source = await import("node:fs/promises").then(({ readFile }) =>
     readFile(new URL("./run-next-with-database.mjs", import.meta.url), "utf8")
   );
   const generateIndex = source.indexOf('"generate"');
   const preflightIndex = source.indexOf("preflight-postgresql-production.mjs");
   assert.ok(generateIndex >= 0 && preflightIndex > generateIndex);
+  assert.match(source, /"prisma", "schema\.prisma"/);
   assert.match(source, /prisma["\s,]+"postgresql["\s,]+"schema\.prisma/);
+  assert.match(source, /prisma["\s,]+"postgresql-recipe["\s,]+"schema\.prisma/);
+  assert.match(source, /childEnv\.DATABASE_URL = env\.DATABASE_URL/);
+  assert.match(source, /childEnv\.SUPABASE_DIRECT_URL = env\.SUPABASE_DIRECT_URL/);
 });

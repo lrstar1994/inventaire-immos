@@ -21,18 +21,22 @@ if (provider === "postgresql") {
   childEnv.SUPABASE_DATABASE_URL = env.SUPABASE_DATABASE_URL;
   if (command === "build") {
     const prismaBinary = path.resolve(process.cwd(), "node_modules", "prisma", "build", "index.js");
-    const generate = spawnSync(process.execPath, [
-      prismaBinary,
-      "generate",
-      "--schema",
-      path.resolve(process.cwd(), "prisma", "postgresql", "schema.prisma")
-    ], {
-      cwd: process.cwd(),
-      env: childEnv,
-      stdio: "inherit"
-    });
-    if (generate.status !== 0) {
-      throw new Error("Build Production refusé : génération du client Prisma PostgreSQL échouée.");
+    childEnv.DATABASE_URL = env.DATABASE_URL;
+    childEnv.SUPABASE_DIRECT_URL = env.SUPABASE_DIRECT_URL;
+    const schemas = [
+      path.resolve(process.cwd(), "prisma", "schema.prisma"),
+      path.resolve(process.cwd(), "prisma", "postgresql", "schema.prisma"),
+      path.resolve(process.cwd(), "prisma", "postgresql-recipe", "schema.prisma")
+    ];
+    for (const schema of schemas) {
+      const generate = spawnSync(process.execPath, [prismaBinary, "generate", "--schema", schema], {
+        cwd: process.cwd(),
+        env: childEnv,
+        stdio: "inherit"
+      });
+      if (generate.status !== 0) {
+        throw new Error("Build Production refusé : génération des clients Prisma échouée.");
+      }
     }
   }
   const preflight = spawnSync(process.execPath, [path.resolve(process.cwd(), "scripts", "preflight-postgresql-production.mjs")], {
