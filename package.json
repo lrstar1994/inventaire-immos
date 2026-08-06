@@ -19,7 +19,9 @@
     "db:migrate": "prisma migrate dev",
     "db:apply-local": "node --experimental-sqlite scripts/apply-sqlite-migration.mjs",
     "db:seed": "prisma db seed",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "postbuild:postgresql": "node scripts/mark-next-server-commonjs.mjs",
+    "postbuild:sqlite": "node scripts/mark-next-server-commonjs.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
