@@ -1,11 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export async function loadSupabaseEnv() {
-  const envPath = path.resolve(process.cwd(), ".env.local");
-  const text = await readFile(envPath, "utf8");
+function parseEnvFile(text) {
   const values = {};
-
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
     if (!match) continue;
@@ -15,6 +12,22 @@ export async function loadSupabaseEnv() {
     }
     values[match[1]] = value;
   }
+  return values;
+}
+
+async function readOptionalEnvFile(filePath) {
+  try {
+    return parseEnvFile(await readFile(filePath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return {};
+    throw new Error(`Impossible de lire ${path.basename(filePath)}.`);
+  }
+}
+
+export async function loadSupabaseEnv({ cwd = process.cwd(), env = process.env } = {}) {
+  const baseValues = await readOptionalEnvFile(path.resolve(cwd, ".env"));
+  const localValues = await readOptionalEnvFile(path.resolve(cwd, ".env.local"));
+  const values = { ...baseValues, ...localValues, ...env };
 
   const required = [
     "DATABASE_URL",

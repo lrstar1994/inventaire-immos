@@ -19,6 +19,22 @@ childEnv.APP_PRISMA_CLIENT = provider === "sqlite" ? "sqlite" : "normal";
 if (provider === "postgresql") {
   const env = await loadSupabaseEnv();
   childEnv.SUPABASE_DATABASE_URL = env.SUPABASE_DATABASE_URL;
+  if (command === "build") {
+    const prismaBinary = path.resolve(process.cwd(), "node_modules", "prisma", "build", "index.js");
+    const generate = spawnSync(process.execPath, [
+      prismaBinary,
+      "generate",
+      "--schema",
+      path.resolve(process.cwd(), "prisma", "postgresql", "schema.prisma")
+    ], {
+      cwd: process.cwd(),
+      env: childEnv,
+      stdio: "inherit"
+    });
+    if (generate.status !== 0) {
+      throw new Error("Build Production refusé : génération du client Prisma PostgreSQL échouée.");
+    }
+  }
   const preflight = spawnSync(process.execPath, [path.resolve(process.cwd(), "scripts", "preflight-postgresql-production.mjs")], {
     cwd: process.cwd(),
     env: childEnv,
