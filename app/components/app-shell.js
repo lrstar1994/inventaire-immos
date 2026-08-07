@@ -13,7 +13,8 @@ const navItems = [
   { href: "/parc", label: "Parc physique", icon: "building", permission: APP_PERMISSIONS.READ },
   { href: "/documents", label: "Documents", icon: "document", permission: APP_PERMISSIONS.READ },
   { href: "/mouvements", label: "Mouvements", icon: "movement", permission: APP_PERMISSIONS.READ },
-  { href: "/referentiels", label: "Referentiels", icon: "database", permission: APP_PERMISSIONS.READ }
+  { href: "/referentiels", label: "Referentiels", icon: "database", permission: APP_PERMISSIONS.READ },
+  { href: "/users", label: "Utilisateurs", icon: "users", permission: APP_PERMISSIONS.USERS_MANAGE }
 ];
 
 const roleLabels = Object.freeze({
@@ -77,6 +78,16 @@ function Icon({ name }) {
         <path d="m18 7-3 3" />
         <path d="M17 17H6l3 3" />
         <path d="m6 17 3-3" />
+      </svg>
+    );
+  }
+  if (name === "users") {
+    return (
+      <svg {...common}>
+        <path d="M16 20v-1.5c0-2-1.8-3.5-4-3.5H7c-2.2 0-4 1.5-4 3.5V20" />
+        <circle cx="9.5" cy="8" r="3" />
+        <path d="M16 11.5c1.8-.3 3-1.7 3-3.5s-1.2-3.2-3-3.5" />
+        <path d="M18 15.5c1.8.6 3 1.8 3 3.5v1" />
       </svg>
     );
   }
