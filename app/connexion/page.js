@@ -1,3 +1,4 @@
+import Link from "next/link";
 import LoginForm from "./login-form";
 import { logoutAction } from "./actions";
 import { getAuthCopy, normalizeAuthLocale } from "@/lib/supabase/auth-copy";
@@ -49,6 +50,9 @@ export default async function LoginPage({ searchParams }) {
               </p>
             ) : null}
             <LoginForm copy={copy} locale={locale} returnTo={returnTo} />
+            <p className="auth-switch">
+              Nouveau collaborateur ? <Link href={`/inscription?returnTo=${encodeURIComponent(returnTo)}`}>Créer un compte</Link>
+            </p>
           </>
         )}
       </section>

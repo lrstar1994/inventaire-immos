@@ -16,6 +16,7 @@ enum UserRole {
 }
 
 enum UserStatus {
+  PENDING
   ACTIVE
   DISABLED
 }
@@ -126,7 +127,7 @@ model User {
   role           UserRole    @default(BASIC_USER)
   status         UserStatus  @default(ACTIVE)
   authProvider   String      @default("local") @map("auth_provider")
-  externalAuthId String?     @map("external_auth_id")
+  externalAuthId String?     @unique(map: "users_external_auth_id_key") @map("external_auth_id")
   directionCodeHash String?  @map("direction_code_hash")
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
@@ -137,7 +138,6 @@ model User {
 
   @@index([role])
   @@index([status])
-  @@index([externalAuthId])
   @@map("users")
 }
 

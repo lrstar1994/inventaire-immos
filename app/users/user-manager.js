@@ -24,17 +24,20 @@ export default function UserManager({ initialUsers = [], roles = [] }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [approvalRoles, setApprovalRoles] = useState({});
 
   const roleLabels = useMemo(() => new Map(roles.map((role) => [role.code, role.label])), [roles]);
+  const pendingUsers = useMemo(() => users.filter((user) => user.status === "PENDING"), [users]);
+  const regularUsers = useMemo(() => users.filter((user) => user.status !== "PENDING"), [users]);
   const filteredUsers = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return users;
-    return users.filter((user) =>
+    if (!term) return regularUsers;
+    return regularUsers.filter((user) =>
       [user.name, user.email, roleLabels.get(user.role), user.status]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term))
     );
-  }, [query, roleLabels, users]);
+  }, [query, regularUsers, roleLabels]);
 
   async function refreshUsers() {
     const response = await fetch("/api/users", { cache: "no-store" });
@@ -114,8 +117,61 @@ export default function UserManager({ initialUsers = [], roles = [] }) {
     }
   }
 
+  async function approveUser(user) {
+    const role = approvalRoles[user.id];
+    if (!role) {
+      setError("Choisissez explicitement un rôle avant de valider la demande.");
+      return;
+    }
+    if (!window.confirm(`Valider la demande de « ${user.name} » avec le rôle ${roleLabels.get(role) || role} ?`)) return;
+    setMessage("");
+    setError("");
+    setPending(true);
+    try {
+      const response = await fetch(`/api/users/${user.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role })
+      });
+      const payload = await readResponse(response);
+      if (!response.ok) throw new Error(publicError(payload, "Validation impossible."));
+      await refreshUsers();
+      setApprovalRoles((current) => ({ ...current, [user.id]: "" }));
+      setMessage("Demande d’accès validée.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Validation impossible.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <section className="reference-layout" aria-label="Administration des utilisateurs">
+      <section className="panel" aria-labelledby="pending-users-title">
+        <div className="panel-heading">
+          <div><h2 id="pending-users-title">Demandes en attente</h2><p className="summary-meta">{pendingUsers.length} demande(s) à valider explicitement</p></div>
+        </div>
+        {pendingUsers.length === 0 ? <p>Aucune demande en attente.</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Nom</th><th>Email</th><th>Date de demande</th><th>Rôle à attribuer</th><th>Actions</th></tr></thead>
+              <tbody>{pendingUsers.map((user) => (
+                <tr key={user.id}>
+                  <td>{user.name}</td><td>{user.email}</td><td>{new Intl.DateTimeFormat("fr-FR").format(new Date(user.createdAt))}</td>
+                  <td><select aria-label={`Rôle pour ${user.name}`} onChange={(event) => setApprovalRoles({ ...approvalRoles, [user.id]: event.target.value })} value={approvalRoles[user.id] || ""}>
+                    <option value="">Choisir un rôle</option>
+                    {roles.map((role) => <option key={role.code} value={role.code}>{role.label}</option>)}
+                  </select></td>
+                  <td><div className="row-actions">
+                    <button disabled={pending || !approvalRoles[user.id]} onClick={() => approveUser(user)} type="button">Valider</button>
+                    <button className="secondary" disabled={pending} onClick={() => disableUser(user)} type="button">Refuser</button>
+                  </div></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
       <div className="reference-grid wide">
         <section className="panel">
           <div className="panel-heading">
