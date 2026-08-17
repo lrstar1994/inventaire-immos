@@ -21,7 +21,7 @@ async function loadReferenceData() {
     }),
     prisma.location.findMany({
       where: { deletedAt: null },
-      include: { parent: { select: { id: true, name: true, code: true, hierarchyLevel: true } } },
+      include: { parent: { select: { id: true, name: true, code: true } } },
       orderBy: { name: "asc" }
     }),
     prisma.assetCategory.findMany({

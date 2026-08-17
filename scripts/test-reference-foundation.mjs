@@ -149,6 +149,17 @@ test("l'API et l'interface exposent les trois concepts", async () => {
   assert.match(text, /Références matériel/);
 });
 
+test("/referentiels sépare les sélections Location et AssetCategory", async () => {
+  const page = await readFile("app/referentiels/page.js", "utf8");
+  const locationStart = page.indexOf("prisma.location.findMany(");
+  const categoryStart = page.indexOf("prisma.assetCategory.findMany(");
+  assert.ok(locationStart >= 0 && categoryStart > locationStart);
+  const locationQuery = page.slice(locationStart, categoryStart);
+  assert.match(locationQuery, /parent: \{ select: \{ id: true, name: true, code: true \} \}/);
+  assert.doesNotMatch(locationQuery, /hierarchyLevel/);
+  assert.match(page, /category: \{ select: \{ id: true, name: true, code: true, hierarchyLevel: true, trackingMode: true, controlLevel: true \} \}/);
+});
+
 test("les permissions Référentiels restent inchangées", async () => {
   const authorization = await readFile("lib/authorization.js", "utf8");
   const roles = await readFile("lib/roles.js", "utf8");
