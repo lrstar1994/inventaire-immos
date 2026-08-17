@@ -147,6 +147,32 @@ enum StorageProvider {
   @@schema("immos_recipe_phase8")
 }
 
+enum AssetCategoryLevel {
+  CATEGORY
+  SUBCATEGORY
+  FAMILY
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetTrackingMode {
+  I
+  Q
+  QI
+  E
+
+  @@schema("immos_recipe_phase8")
+}
+
+enum AssetControlLevel {
+  C1
+  C2
+  C3
+  C4
+
+  @@schema("immos_recipe_phase8")
+}
+
 model User {
   id                String     @id @default(cuid())
   email             String     @unique
@@ -224,23 +250,27 @@ model Location {
 }
 
 model AssetCategory {
-  id           String          @id @default(cuid())
-  name         String
-  code         String?         @unique
-  description  String?
-  parentId     String?         @map("parent_id")
-  parent       AssetCategory?  @relation("AssetCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children     AssetCategory[] @relation("AssetCategoryHierarchy")
-  displayOrder Int             @default(0) @map("display_order")
-  status       UserStatus      @default(ACTIVE)
-  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdById  String?         @map("created_by")
-  updatedById  String?         @map("updated_by")
-  deletedAt    DateTime?       @map("deleted_at") @db.Timestamptz(3)
-  assetItems   AssetItem[]
+  id             String             @id @default(cuid())
+  name           String
+  code           String?            @unique
+  description    String?
+  hierarchyLevel AssetCategoryLevel @default(CATEGORY) @map("hierarchy_level")
+  trackingMode   AssetTrackingMode? @map("tracking_mode")
+  controlLevel   AssetControlLevel? @map("control_level")
+  parentId       String?            @map("parent_id")
+  parent         AssetCategory?     @relation("AssetCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children       AssetCategory[]    @relation("AssetCategoryHierarchy")
+  displayOrder   Int                @default(0) @map("display_order")
+  status         UserStatus         @default(ACTIVE)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById    String?            @map("created_by")
+  updatedById    String?            @map("updated_by")
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  assetItems     AssetItem[]
 
   @@index([name])
+  @@index([hierarchyLevel])
   @@index([parentId])
   @@index([status])
   @@map("asset_categories")

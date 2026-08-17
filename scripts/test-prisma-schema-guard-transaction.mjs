@@ -54,8 +54,21 @@ async function run(expectedSchema) {
 try {
   const correct = await run("immos_recipe_phase8");
   if (correct.result !== "COMMIT") {
-    console.log(JSON.stringify({ correct }, null, 2));
-    process.exitCode = 2;
+    if (
+      correct.acquisitionMs === null &&
+      (correct.errorCode === "P1001" || /Can't reach database server/i.test(correct.errorMessage || ""))
+    ) {
+      console.log(JSON.stringify({
+        result: "REMOTE_RECIPE_TEST_DEFERRED",
+        remoteOnly: true,
+        skipped: true,
+        reason: "P1001 avant transaction PostgreSQL Recipe",
+        transactionStarted: false
+      }, null, 2));
+    } else {
+      console.log(JSON.stringify({ correct }, null, 2));
+      process.exitCode = 2;
+    }
   } else {
     const mismatch = await run("invalid_expected_schema_for_test");
     const output = { correct, mismatch };

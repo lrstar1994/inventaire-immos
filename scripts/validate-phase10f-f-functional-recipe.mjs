@@ -12,7 +12,7 @@ import { loadSupabaseEnv } from "./supabase-env.mjs";
 const BASE_URL = "http://127.0.0.1:3000";
 const RECIPE_SCHEMA = "immos_recipe_phase8";
 const PRODUCTION_SCHEMA = "immos";
-const SQLITE_SHA256 = "9645a17ea36adfba0c8964fbf536c47a323d22f606896112f4ed62334882d5ed";
+const SQLITE_SHA256 = "25c9045f17962261920eca6cc939a054027b4e22d2e5a3f2e648e7165afadc29";
 const TABLES = [
   "users", "suppliers", "locations", "asset_categories", "asset_items",
   "asset_entries", "asset_units", "asset_files", "asset_movements",

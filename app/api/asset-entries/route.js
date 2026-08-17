@@ -47,6 +47,6 @@ export async function POST(request) {
     if (error.code === "POSSIBLE_DUPLICATE") {
       return jsonError(error.message, 409, { similarUnits: error.similarUnits });
     }
-    return jsonError(error.message || "Creation impossible.");
+    return jsonError(error.message || "Creation impossible.", error.status || 400);
   }
 }

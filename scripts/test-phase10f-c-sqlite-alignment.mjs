@@ -11,7 +11,7 @@ const workspace = path.resolve(process.cwd());
 const source = path.resolve(workspace, "prisma/dev.db");
 const backupRoot = path.resolve(workspace, "backups/phase10f-d");
 const protectedSha = "8c9dcce5b820b383e8ba6a4f3c0c33d536220fe997847e3a3b6277ec6fc4aaec";
-const alignedSha = "9645a17ea36adfba0c8964fbf536c47a323d22f606896112f4ed62334882d5ed";
+const alignedSha = "25c9045f17962261920eca6cc939a054027b4e22d2e5a3f2e648e7165afadc29";
 const testRoot = path.resolve(workspace, "tmp/phase10f-c/tests");
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 

@@ -1,4 +1,5 @@
 import { createListHandler, createPostHandler } from "@/lib/reference-api";
+import { validateAssetItemFamily } from "@/lib/asset-reference-foundation";
 
 const config = {
   model: "assetItem",
@@ -6,6 +7,7 @@ const config = {
   auditName: "article modele",
   required: ["name", "categoryId"],
   fields: ["name", "code", "description", "unitLabel", "categoryId", "supplierId", "status"],
+  validate: validateAssetItemFamily,
   searchable: ["name", "code", "description"]
 };
 

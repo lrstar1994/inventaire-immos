@@ -21,7 +21,7 @@ async function loadReferenceData() {
     }),
     prisma.location.findMany({
       where: { deletedAt: null },
-      include: { parent: { select: { id: true, name: true, code: true } } },
+      include: { parent: { select: { id: true, name: true, code: true, hierarchyLevel: true } } },
       orderBy: { name: "asc" }
     }),
     prisma.assetCategory.findMany({
@@ -32,7 +32,7 @@ async function loadReferenceData() {
     prisma.assetItem.findMany({
       where: { deletedAt: null },
       include: {
-        category: { select: { id: true, name: true, code: true } },
+        category: { select: { id: true, name: true, code: true, hierarchyLevel: true, trackingMode: true, controlLevel: true } },
         supplier: { select: { id: true, name: true, code: true } }
       },
       orderBy: { name: "asc" }
@@ -58,7 +58,7 @@ export default async function ReferentialsPage({ searchParams }) {
           <p className="eyebrow">Lot 2</p>
           <h1>Referentiels</h1>
           <p className="summary">
-            Fournisseurs, emplacements, categories hierarchiques et articles modeles.
+            Fournisseurs, emplacements, catégories hiérarchiques et références matériel.
           </p>
         </div>
         <Link className="button secondary" href="/">

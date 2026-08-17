@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+const levelLabels = { CATEGORY: "Catégorie", SUBCATEGORY: "Sous-catégorie", FAMILY: "Famille" };
+const trackingLabels = { I: "Individuel", Q: "Quantité", QI: "Quantité individualisable", E: "Ensemble" };
+const controlLabels = { C1: "Standard", C2: "À contrôler", C3: "Sensible", C4: "Critique" };
+
 const resources = {
   suppliers: {
     label: "Fournisseurs",
@@ -32,26 +36,30 @@ const resources = {
     columns: ["name", "code", "locationType", "parent"]
   },
   categories: {
-    label: "Categories",
+    label: "Catégories / Sous-catégories / Familles",
     endpoint: "/api/asset-categories",
     fields: [
       { name: "name", label: "Nom", required: true },
-      { name: "code", label: "Code" },
+      { name: "hierarchyLevel", label: "Type", required: true, options: levelLabels },
+      { name: "code", label: "Code", required: true },
       { name: "description", label: "Description", textarea: true },
-      { name: "parentId", label: "Parent", relation: "categories" },
+      { name: "parentId", label: "Parent", relation: "categories", visible: (form) => form.hierarchyLevel !== "CATEGORY" },
+      { name: "trackingMode", label: "Mode de suivi", options: trackingLabels, visible: (form) => form.hierarchyLevel === "FAMILY" },
+      { name: "controlLevel", label: "Niveau de contrôle", options: controlLabels, visible: (form) => form.hierarchyLevel === "FAMILY" },
+      { name: "status", label: "Statut", options: { ACTIVE: "Actif", DISABLED: "Inactif" } },
       { name: "displayOrder", label: "Ordre", type: "number" }
     ],
-    columns: ["name", "code", "parent", "description"]
+    columns: ["name", "code", "hierarchyLevel", "parent", "trackingMode", "controlLevel"]
   },
   items: {
-    label: "Articles / modeles",
+    label: "Références matériel",
     endpoint: "/api/asset-items",
     fields: [
       { name: "name", label: "Nom", required: true },
       { name: "code", label: "Code" },
       { name: "description", label: "Description", textarea: true },
       { name: "unitLabel", label: "Unite" },
-      { name: "categoryId", label: "Categorie", relation: "categories", required: true },
+      { name: "categoryId", label: "Famille", relation: "categories", required: true, familyOnly: true },
       { name: "supplierId", label: "Fournisseur", relation: "suppliers" },
       { name: "depreciationYears", label: "Duree indicative", type: "number" }
     ],
@@ -60,13 +68,18 @@ const resources = {
 };
 
 function emptyForm(resource) {
-  return Object.fromEntries(resources[resource].fields.map((field) => [field.name, ""]));
+  const form = Object.fromEntries(resources[resource].fields.map((field) => [field.name, ""]));
+  if (resource === "categories") form.hierarchyLevel = "CATEGORY";
+  return form;
 }
 
 function valueForColumn(item, column) {
   if (column === "parent") return item.parent?.name || "";
   if (column === "category") return item.category?.name || "";
   if (column === "supplier") return item.supplier?.name || "";
+  if (column === "hierarchyLevel") return levelLabels[item.hierarchyLevel] || item.hierarchyLevel || "";
+  if (column === "trackingMode") return trackingLabels[item.trackingMode] || "-";
+  if (column === "controlLevel") return controlLabels[item.controlLevel] || "-";
   return item[column] || "";
 }
 
@@ -137,8 +150,14 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
     );
   }, [active, data, query]);
 
-  function relationOptions(relation, currentId) {
-    return data[relation].filter((item) => item.id !== currentId);
+  function relationOptions(field, currentId) {
+    let options = data[field.relation].filter((item) => item.id !== currentId);
+    if (field.familyOnly) options = options.filter((item) => item.hierarchyLevel === "FAMILY");
+    if (active === "categories" && field.name === "parentId") {
+      const expected = form.hierarchyLevel === "SUBCATEGORY" ? "CATEGORY" : "SUBCATEGORY";
+      options = options.filter((item) => item.hierarchyLevel === expected);
+    }
+    return options;
   }
 
   function startEdit(item) {
@@ -274,7 +293,7 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
         {canWrite ? <aside className="panel">
           <h2>{editingId ? "Modifier" : "Creer"}</h2>
           <form className="form" onSubmit={submitForm}>
-            {config.fields.map((field) => (
+            {config.fields.filter((field) => !field.visible || field.visible(form)).map((field) => (
               <label key={field.name}>
                 <span>{field.label}</span>
                 {field.relation ? (
@@ -284,10 +303,29 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
                     onChange={(event) => setForm({ ...form, [field.name]: event.target.value })}
                   >
                     <option value="">Aucun</option>
-                    {relationOptions(field.relation, editingId).map((option) => (
+                    {relationOptions(field, editingId).map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.name}
                       </option>
+                    ))}
+                  </select>
+                ) : field.options ? (
+                  <select
+                    required={field.required}
+                    value={form[field.name] || ""}
+                    onChange={(event) => {
+                      const next = { ...form, [field.name]: event.target.value };
+                      if (field.name === "hierarchyLevel") {
+                        next.parentId = "";
+                        next.trackingMode = event.target.value === "FAMILY" ? (form.trackingMode || "I") : "";
+                        next.controlLevel = event.target.value === "FAMILY" ? (form.controlLevel || "C1") : "";
+                      }
+                      setForm(next);
+                    }}
+                  >
+                    <option value="">Choisir</option>
+                    {Object.entries(field.options).map(([optionValue, optionLabel]) => (
+                      <option key={optionValue} value={optionValue}>{optionLabel}</option>
                     ))}
                   </select>
                 ) : field.textarea ? (
@@ -342,7 +380,16 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
               <strong>{selectedItem.name}</strong>
               <p className="fact-line"><span>Code</span><strong>{selectedItem.code || "-"}</strong></p>
               <p className="fact-line"><span>Type</span><strong>{selectedItem.supplierType || selectedItem.locationType || selectedItem.unitLabel || "-"}</strong></p>
+              {active === "categories" ? <p className="fact-line"><span>Niveau</span><strong>{levelLabels[selectedItem.hierarchyLevel] || "-"}</strong></p> : null}
               <p className="fact-line"><span>Parent</span><strong>{selectedItem.parent?.name || selectedItem.category?.name || "-"}</strong></p>
+              {active === "categories" && selectedItem.hierarchyLevel === "FAMILY" ? <>
+                <p className="fact-line"><span>Mode de suivi</span><strong>{trackingLabels[selectedItem.trackingMode] || "-"}</strong></p>
+                <p className="fact-line"><span>Niveau de contrôle</span><strong>{controlLabels[selectedItem.controlLevel] || "-"}</strong></p>
+              </> : null}
+              {active === "items" ? <>
+                <p className="fact-line"><span>Mode de suivi</span><strong>{trackingLabels[selectedItem.category?.trackingMode] || "-"}</strong></p>
+                <p className="fact-line"><span>Niveau de contrôle</span><strong>{controlLabels[selectedItem.category?.controlLevel] || "-"}</strong></p>
+              </> : null}
               <p className="fact-line"><span>Statut</span><strong>{selectedItem.status === "ACTIVE" ? "Actif" : "Inactif"}</strong></p>
             </article>
             <article className="info-box">

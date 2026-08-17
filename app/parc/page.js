@@ -44,7 +44,7 @@ async function loadParkData() {
     prisma.assetItem.findMany({
       where: { status: "ACTIVE", deletedAt: null },
       include: {
-        category: { select: { id: true, name: true, code: true, parentId: true } },
+        category: { select: { id: true, name: true, code: true, parentId: true, hierarchyLevel: true, trackingMode: true, controlLevel: true } },
         supplier: { select: { id: true, name: true, code: true } }
       },
       orderBy: { name: "asc" }
