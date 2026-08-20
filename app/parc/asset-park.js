@@ -79,6 +79,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   const [units, setUnits] = useState(initialUnits);
   const [entries, setEntries] = useState(initialEntries);
   const [quantitativeStocks, setQuantitativeStocks] = useState(initialQuantitativeStocks);
+  const [transfer, setTransfer] = useState(null);
   const [filters, setFilters] = useState({
     q: "",
     status: "",
@@ -433,6 +434,32 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     }
 
     setMessage(`Bien ${result.unit.assetCode} mis a jour.`);
+    await loadData();
+  }
+
+  async function submitQuantitativeTransfer(event) {
+    event.preventDefault();
+    if (!transfer) return;
+    setMessage("");
+    const response = await fetch("/api/quantitative-stock-transfers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        assetEntryId: transfer.assetEntryId,
+        fromLocationId: transfer.fromLocationId,
+        toLocationId: transfer.toLocationId,
+        quantity: transfer.quantity,
+        reason: transfer.reason,
+        notes: transfer.notes
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setMessage(result.error || "Transfert impossible.");
+      return;
+    }
+    setMessage(`Transfert de ${result.transferredQuantity} unité(s) enregistré.`);
+    setTransfer(null);
     await loadData();
   }
 
@@ -793,7 +820,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
         </div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Référence</th><th>Famille</th><th>Mode</th><th>Lot</th><th>Emplacement</th><th>Disponible</th><th>Acquise</th><th>Fournisseur</th><th>Date</th><th>Prix</th></tr></thead>
+            <thead><tr><th>Référence</th><th>Famille</th><th>Mode</th><th>Lot</th><th>Emplacement</th><th>Disponible</th><th>Acquise</th><th>Fournisseur</th><th>Date</th><th>Prix</th>{canWrite ? <th>Action</th> : null}</tr></thead>
             <tbody>
               {quantitativeStocks.map((position) => {
                 const item = position.assetEntry?.assetItem;
@@ -803,12 +830,21 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
                   <td>{position.location?.name || "-"}</td><td>{position.availableQuantity}</td><td>{position.assetEntry?.quantity}</td>
                   <td>{position.assetEntry?.supplier?.name || "-"}</td><td>{position.assetEntry?.entryDate ? String(position.assetEntry.entryDate).slice(0, 10) : "-"}</td>
                   <td>{position.assetEntry?.priceKnown ? (position.assetEntry.totalPrice ?? position.assetEntry.unitPrice ?? "-") : "-"}</td>
+                  {canWrite ? <td><button className="secondary" type="button" disabled={position.availableQuantity <= 0} onClick={() => setTransfer({ assetEntryId: position.assetEntry.id, entryNumber: position.assetEntry.entryNumber, itemName: item?.name || "Référence", fromLocationId: position.location.id, fromLocationName: position.location.name, availableQuantity: position.availableQuantity, toLocationId: "", quantity: 1, reason: "Transfert interne", notes: "" })}>Transférer</button></td> : null}
                 </tr>;
               })}
-              {!quantitativeStocks.length ? <tr><td colSpan="10">Aucun stock quantitatif enregistré.</td></tr> : null}
+              {!quantitativeStocks.length ? <tr><td colSpan={canWrite ? 11 : 10}>Aucun stock quantitatif enregistré.</td></tr> : null}
             </tbody>
           </table>
         </div>
+        {transfer ? <form className="form" onSubmit={submitQuantitativeTransfer}>
+          <div className="info-box"><strong>{transfer.itemName} — {transfer.entryNumber}</strong><p>Source : {transfer.fromLocationName} · Disponible : {transfer.availableQuantity}</p></div>
+          <label><span>Destination</span><select required value={transfer.toLocationId} onChange={(event) => setTransfer({ ...transfer, toLocationId: event.target.value })}><option value="">Choisir</option>{options.locations.filter((location) => location.id !== transfer.fromLocationId).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+          <label><span>Quantité</span><input required type="number" min="1" step="1" max={transfer.availableQuantity} value={transfer.quantity} onChange={(event) => setTransfer({ ...transfer, quantity: event.target.value })} /></label>
+          <label><span>Motif</span><input required value={transfer.reason} onChange={(event) => setTransfer({ ...transfer, reason: event.target.value })} /></label>
+          <label><span>Notes</span><textarea value={transfer.notes} onChange={(event) => setTransfer({ ...transfer, notes: event.target.value })} /></label>
+          <div className="form-actions"><button className="button" type="submit">Confirmer le transfert</button><button className="secondary" type="button" onClick={() => setTransfer(null)}>Annuler</button></div>
+        </form> : null}
       </section>
 
       <div className="park-detail-grid detail-row">
