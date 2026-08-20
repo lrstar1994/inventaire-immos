@@ -206,6 +206,9 @@ model Location {
   documentLines     AssetDocumentLine[]
   movementLinesFrom AssetMovementLine[] @relation("MovementFromLocation")
   movementLinesTo   AssetMovementLine[] @relation("MovementToLocation")
+  quantitativeStockPositions QuantitativeStockPosition[]
+  quantitativeLinesFrom QuantitativeMovementLine[] @relation("QuantitativeMovementFromLocation")
+  quantitativeLinesTo   QuantitativeMovementLine[] @relation("QuantitativeMovementToLocation")
 
   @@index([name])
   @@index([parentId])
@@ -300,6 +303,8 @@ model AssetEntry {
   assetUnits        AssetUnit[]
   documentEntries   AssetDocumentEntry[]
   documentLines     AssetDocumentLine[]
+  quantitativeStockPositions QuantitativeStockPosition[]
+  quantitativeMovementLines  QuantitativeMovementLine[]
 
   @@index([entryNumber])
   @@index([assetItemId])
@@ -404,6 +409,7 @@ model AssetMovement {
   cancelledById      String?             @map("cancelled_by")
   cancellationReason String?             @map("cancellation_reason")
   lines              AssetMovementLine[]
+  quantitativeLines  QuantitativeMovementLine[]
   relatedMovement    AssetMovement?      @relation("RelatedMovement", fields: [relatedMovementId], references: [id], onDelete: SetNull)
   returnMovements    AssetMovement[]     @relation("RelatedMovement")
 
@@ -434,6 +440,45 @@ model AssetMovementLine {
   @@index([fromLocationId])
   @@index([toLocationId])
   @@map("asset_movement_lines")
+}
+
+model QuantitativeStockPosition {
+  id                String     @id @default(cuid())
+  assetEntryId      String     @map("asset_entry_id")
+  locationId        String     @map("location_id")
+  availableQuantity Int        @default(0) @map("available_quantity")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  createdById       String?    @map("created_by")
+  updatedById       String?    @map("updated_by")
+  assetEntry        AssetEntry @relation(fields: [assetEntryId], references: [id], onDelete: Restrict)
+  location          Location   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([assetEntryId, locationId])
+  @@index([assetEntryId])
+  @@index([locationId])
+  @@map("quantitative_stock_positions")
+}
+
+model QuantitativeMovementLine {
+  id             String        @id @default(cuid())
+  movementId     String        @map("movement_id")
+  assetEntryId   String        @map("asset_entry_id")
+  fromLocationId String?       @map("from_location_id")
+  toLocationId   String?       @map("to_location_id")
+  quantity       Int
+  lineNotes      String?       @map("line_notes")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  movement       AssetMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  assetEntry     AssetEntry    @relation(fields: [assetEntryId], references: [id], onDelete: Restrict)
+  fromLocation   Location?     @relation("QuantitativeMovementFromLocation", fields: [fromLocationId], references: [id], onDelete: Restrict)
+  toLocation     Location?     @relation("QuantitativeMovementToLocation", fields: [toLocationId], references: [id], onDelete: Restrict)
+
+  @@index([movementId])
+  @@index([assetEntryId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@map("quantitative_movement_lines")
 }
 
 model AssetDocument {
