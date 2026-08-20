@@ -74,10 +74,11 @@ function rootCategoryFor(categories, categoryId) {
   return current || null;
 }
 
-export default function AssetPark({ canWrite = false, initialOptions = null, initialUnits = [], initialEntries = [] }) {
+export default function AssetPark({ canWrite = false, initialOptions = null, initialUnits = [], initialEntries = [], initialQuantitativeStocks = [] }) {
   const [options, setOptions] = useState(initialOptions);
   const [units, setUnits] = useState(initialUnits);
   const [entries, setEntries] = useState(initialEntries);
+  const [quantitativeStocks, setQuantitativeStocks] = useState(initialQuantitativeStocks);
   const [filters, setFilters] = useState({
     q: "",
     status: "",
@@ -96,14 +97,16 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   const [fileInputKey, setFileInputKey] = useState(0);
 
   async function loadData() {
-    const [nextOptions, nextUnits, nextEntries] = await Promise.all([
+    const [nextOptions, nextUnits, nextEntries, nextStocks] = await Promise.all([
       fetch("/api/asset-options").then((response) => response.json()),
       fetch("/api/asset-units").then((response) => response.json()),
-      fetch("/api/asset-entries").then((response) => response.json())
+      fetch("/api/asset-entries").then((response) => response.json()),
+      fetch("/api/quantitative-stock-positions").then((response) => response.json())
     ]);
     setOptions(nextOptions);
     setUnits(nextUnits.units || []);
     setEntries(nextEntries.entries || []);
+    setQuantitativeStocks(nextStocks.positions || []);
     setSelected((current) => {
       if (!current) return null;
       return (nextUnits.units || []).find((unit) => unit.id === current.id) || null;
@@ -347,6 +350,12 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     event.preventDefault();
     setMessage("");
     setDuplicateAlert(null);
+    const selectedAssetItem = options.assetItems.find((item) => item.id === entry.assetItemId);
+    const trackingMode = selectedAssetItem?.category?.trackingMode || "I";
+    if (trackingMode === "QI" || trackingMode === "E") {
+      setMessage("TRACKING_MODE_NOT_OPERATIONAL");
+      return;
+    }
     const duplicateParams = new URLSearchParams({
       assetItemId: entry.assetItemId,
       locationId: entry.locationId
@@ -354,22 +363,24 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     if (entry.supplierKnown && entry.supplierId) duplicateParams.set("supplierId", entry.supplierId);
     if (entry.serialNumber) duplicateParams.set("serialNumber", entry.serialNumber);
 
-    const duplicateResponse = await fetch(`/api/asset-duplicate-check?${duplicateParams.toString()}`);
-    const duplicateResult = await duplicateResponse.json();
-    if (duplicateResult.serialDuplicateBlocked) {
-      setDuplicateAlert(duplicateResult);
-      setMessage("Numero de serie deja utilise par un bien actif.");
-      return;
-    }
-    if (duplicateResult.possibleDuplicate && (!entry.duplicateConfirmed || !entry.duplicateReason.trim())) {
-      setDuplicateAlert(duplicateResult);
-      setMessage("Doublon probable detecte : confirmer et saisir un motif pour continuer.");
-      return;
+    if (trackingMode === "I") {
+      const duplicateResponse = await fetch(`/api/asset-duplicate-check?${duplicateParams.toString()}`);
+      const duplicateResult = await duplicateResponse.json();
+      if (duplicateResult.serialDuplicateBlocked) {
+        setDuplicateAlert(duplicateResult);
+        setMessage("Numero de serie deja utilise par un bien actif.");
+        return;
+      }
+      if (duplicateResult.possibleDuplicate && (!entry.duplicateConfirmed || !entry.duplicateReason.trim())) {
+        setDuplicateAlert(duplicateResult);
+        setMessage("Doublon probable detecte : confirmer et saisir un motif pour continuer.");
+        return;
+      }
     }
 
     const payload = {
       ...entry,
-      quantity: Number.parseInt(entry.quantity, 10),
+      quantity: trackingMode === "Q" ? entry.quantity : Number.parseInt(entry.quantity, 10),
       supplierId: entry.supplierKnown ? entry.supplierId || null : null,
       unitPrice: entry.priceKnown ? entry.unitPrice || null : null,
       totalPrice: entry.priceKnown ? entry.totalPrice || null : null,
@@ -391,7 +402,9 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
       return;
     }
 
-    setMessage(`${result.units.length} bien(s) cree(s) depuis ${result.entry.entryNumber}.`);
+    setMessage(trackingMode === "Q"
+      ? `Stock quantitatif de ${result.quantitativePosition.availableQuantity} créé depuis ${result.entry.entryNumber}.`
+      : `${result.units.length} bien(s) cree(s) depuis ${result.entry.entryNumber}.`);
     setEntry(initialEntry);
     setDuplicateAlert(null);
     await loadData();
@@ -426,6 +439,9 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   if (!options) {
     return <p className="summary">Chargement du parc physique...</p>;
   }
+
+  const selectedEntryItem = options.assetItems.find((item) => item.id === entry.assetItemId);
+  const selectedTrackingMode = selectedEntryItem?.category?.trackingMode || "I";
 
   return (
     <section className="reference-layout park-layout">
@@ -606,7 +622,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
         {canWrite ? <aside className="panel park-entry-panel">
           <div className="park-panel-title">
             <h2>Nouvelle entree</h2>
-            <p className="summary">Enregistrez un ou plusieurs biens physiques distincts.</p>
+            <p className="summary">Enregistrez des biens individuels ou une entrée suivie en quantité.</p>
           </div>
           <form className="form" onSubmit={submitEntry}>
             <label>
@@ -618,9 +634,17 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
                 ))}
               </select>
             </label>
+            {entry.assetItemId ? (
+              <div className={selectedTrackingMode === "Q" ? "info-box" : "warning-box"}>
+                {selectedTrackingMode === "I" ? "Suivi individuel : chaque exemplaire sera individualisé." : null}
+                {selectedTrackingMode === "Q" ? "Suivi en quantité : aucune unité individuelle ne sera créée." : null}
+                {selectedTrackingMode === "QI" ? "Suivi en quantité, individualisation possible — bientôt disponible." : null}
+                {selectedTrackingMode === "E" ? "Ensemble / kit — bientôt disponible." : null}
+              </div>
+            ) : null}
             <label>
               <span>Quantite</span>
-              <input min="1" required type="number" value={entry.quantity} onChange={(event) => setEntry({ ...entry, quantity: event.target.value, duplicateConfirmed: false, duplicateReason: "" })} />
+              <input min="1" step="1" required type="number" value={entry.quantity} onChange={(event) => setEntry({ ...entry, quantity: event.target.value, duplicateConfirmed: false, duplicateReason: "" })} />
             </label>
             <label>
               <span>Emplacement</span>
@@ -718,7 +742,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
                 <input value={entry.invoiceReference} onChange={(event) => setEntry({ ...entry, invoiceReference: event.target.value })} />
               </label>
             ) : null}
-            {Number.parseInt(entry.quantity, 10) === 1 ? (
+            {selectedTrackingMode === "I" && Number.parseInt(entry.quantity, 10) === 1 ? (
               <label>
                 <span>Numero de serie</span>
                 <input value={entry.serialNumber} onChange={(event) => setEntry({ ...entry, serialNumber: event.target.value, duplicateConfirmed: false, duplicateReason: "" })} />
@@ -757,10 +781,35 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               <textarea value={entry.notes} onChange={(event) => setEntry({ ...entry, notes: event.target.value })} />
             </label>
             {message ? <p className="form-message">{message}</p> : null}
-            <button className="button" type="submit">Creer l'entree</button>
+            <button className="button" type="submit" disabled={selectedTrackingMode === "QI" || selectedTrackingMode === "E"}>Creer l'entree</button>
           </form>
         </aside> : null}
       </div>
+
+      <section className="panel park-recent-panel">
+        <div className="park-panel-title">
+          <h2>Stocks quantitatifs</h2>
+          <p className="summary">Lots suivis en quantité, distincts des biens individualisés.</p>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Référence</th><th>Famille</th><th>Mode</th><th>Lot</th><th>Emplacement</th><th>Disponible</th><th>Acquise</th><th>Fournisseur</th><th>Date</th><th>Prix</th></tr></thead>
+            <tbody>
+              {quantitativeStocks.map((position) => {
+                const item = position.assetEntry?.assetItem;
+                const family = item?.category;
+                return <tr key={position.id}>
+                  <td>{item?.name || "-"}</td><td>{family?.name || "-"}</td><td>Quantité</td><td>{position.assetEntry?.entryNumber || "-"}</td>
+                  <td>{position.location?.name || "-"}</td><td>{position.availableQuantity}</td><td>{position.assetEntry?.quantity}</td>
+                  <td>{position.assetEntry?.supplier?.name || "-"}</td><td>{position.assetEntry?.entryDate ? String(position.assetEntry.entryDate).slice(0, 10) : "-"}</td>
+                  <td>{position.assetEntry?.priceKnown ? (position.assetEntry.totalPrice ?? position.assetEntry.unitPrice ?? "-") : "-"}</td>
+                </tr>;
+              })}
+              {!quantitativeStocks.length ? <tr><td colSpan="10">Aucun stock quantitatif enregistré.</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="park-detail-grid detail-row">
         <section className="panel park-recent-panel">

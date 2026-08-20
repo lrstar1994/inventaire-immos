@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { canManageAssets } from "@/lib/roles";
 import { getRequestUser } from "@/lib/request-user";
-import { auditEntryCreation, createAssetEntryWithUnits } from "@/lib/asset-service";
+import { auditEntryCreation, createAssetEntryByTrackingMode } from "@/lib/asset-service";
 
 const include = {
   assetItem: { select: { id: true, name: true, code: true } },
@@ -40,7 +40,7 @@ export async function POST(request) {
 
   try {
     const body = await readJson(request);
-    const result = await createAssetEntryWithUnits(body, actor);
+    const result = await createAssetEntryByTrackingMode(body, actor);
     await auditEntryCreation({ ...result, actor });
     return jsonOk(result, { status: 201 });
   } catch (error) {

@@ -109,11 +109,11 @@ test("le garde PostgreSQL exige tables, colonnes et contraintes quantitatives", 
   );
 });
 
-test("le flux individuel demeure isolé et Q/QI/E restent bloqués avant 13C-D", async () => {
+test("le flux individuel demeure isolé et seuls QI/E restent bloqués après 13C-D", async () => {
   const assetService = await readFile(join(root, "lib", "asset-service.js"), "utf8");
-  assert.doesNotMatch(assetService, /quantitativeStockPosition|quantitativeMovementLine/);
+  assert.match(assetService, /createQuantitativeAssetEntryWithPosition/);
   assert.equal(assertIndividualTrackingMode({ category: { trackingMode: "I" } }), "I");
-  for (const mode of ["Q", "QI", "E"]) {
+  for (const mode of ["QI", "E"]) {
     assert.throws(() => assertIndividualTrackingMode({ category: { trackingMode: mode } }), { code: "TRACKING_MODE_NOT_OPERATIONAL" });
   }
 });

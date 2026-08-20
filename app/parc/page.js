@@ -40,7 +40,7 @@ const unitInclude = {
 };
 
 async function loadParkData() {
-  const [assetItems, assetCategories, locations, suppliers, units, entries] = await Promise.all([
+  const [assetItems, assetCategories, locations, suppliers, units, entries, quantitativeStocks] = await Promise.all([
     prisma.assetItem.findMany({
       where: { status: "ACTIVE", deletedAt: null },
       include: {
@@ -75,6 +75,16 @@ async function loadParkData() {
         assetUnits: { select: { id: true, assetCode: true, status: true, condition: true } }
       },
       orderBy: { entryDate: "desc" }
+    }),
+    prisma.quantitativeStockPosition.findMany({
+      include: {
+        location: { select: { id: true, name: true, code: true } },
+        assetEntry: { include: {
+          supplier: { select: { id: true, name: true, code: true } },
+          assetItem: { include: { category: { include: { parent: { include: { parent: true } } } } }
+        } }
+      },
+      orderBy: { createdAt: "desc" }
     })
   ]);
 
@@ -94,7 +104,8 @@ async function loadParkData() {
       assetFileOptions: assetFileOptions()
     },
     units: accessibleUnits,
-    entries
+    entries,
+    quantitativeStocks
   }));
 }
 
@@ -124,7 +135,7 @@ export default async function ParkPage() {
           </Link>
         </div>
       </div>
-      <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialEntries={initialData.entries} />
+      <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialEntries={initialData.entries} initialQuantitativeStocks={initialData.quantitativeStocks} />
     </main>
   );
 }
