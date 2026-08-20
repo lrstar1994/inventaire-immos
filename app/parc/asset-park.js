@@ -40,6 +40,9 @@ const initialFileForm = {
   file: null
 };
 
+const initialEquipmentSetForm = { code: "", name: "", description: "", locationId: "" };
+const initialEquipmentComponentForm = { equipmentSetId: "", type: "INDIVIDUAL", assetUnitId: "", stockPositionId: "", quantity: 1, notes: "" };
+
 function label(list, code) {
   return list.find((item) => item.code === code)?.label || code;
 }
@@ -74,11 +77,14 @@ function rootCategoryFor(categories, categoryId) {
   return current || null;
 }
 
-export default function AssetPark({ canWrite = false, initialOptions = null, initialUnits = [], initialEntries = [], initialQuantitativeStocks = [] }) {
+export default function AssetPark({ canWrite = false, initialOptions = null, initialUnits = [], initialEntries = [], initialQuantitativeStocks = [], initialEquipmentSets = [] }) {
   const [options, setOptions] = useState(initialOptions);
   const [units, setUnits] = useState(initialUnits);
   const [entries, setEntries] = useState(initialEntries);
   const [quantitativeStocks, setQuantitativeStocks] = useState(initialQuantitativeStocks);
+  const [equipmentSets, setEquipmentSets] = useState(initialEquipmentSets);
+  const [equipmentSetForm, setEquipmentSetForm] = useState(initialEquipmentSetForm);
+  const [equipmentComponentForm, setEquipmentComponentForm] = useState(initialEquipmentComponentForm);
   const [transfer, setTransfer] = useState(null);
   const [individualization, setIndividualization] = useState(null);
   const [filters, setFilters] = useState({
@@ -99,16 +105,18 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   const [fileInputKey, setFileInputKey] = useState(0);
 
   async function loadData() {
-    const [nextOptions, nextUnits, nextEntries, nextStocks] = await Promise.all([
+    const [nextOptions, nextUnits, nextEntries, nextStocks, nextEquipmentSets] = await Promise.all([
       fetch("/api/asset-options").then((response) => response.json()),
       fetch("/api/asset-units").then((response) => response.json()),
       fetch("/api/asset-entries").then((response) => response.json()),
-      fetch("/api/quantitative-stock-positions").then((response) => response.json())
+      fetch("/api/quantitative-stock-positions").then((response) => response.json()),
+      fetch("/api/equipment-sets").then((response) => response.json())
     ]);
     setOptions(nextOptions);
     setUnits(nextUnits.units || []);
     setEntries(nextEntries.entries || []);
     setQuantitativeStocks(nextStocks.positions || []);
+    setEquipmentSets(nextEquipmentSets.equipmentSets || []);
     setSelected((current) => {
       if (!current) return null;
       return (nextUnits.units || []).find((unit) => unit.id === current.id) || null;
@@ -487,12 +495,73 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     await loadData();
   }
 
+  async function submitEquipmentSet(event) {
+    event.preventDefault();
+    setMessage("");
+    const response = await fetch("/api/equipment-sets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(equipmentSetForm)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setMessage(result.error || "Création de l'ensemble impossible.");
+      return;
+    }
+    setMessage(`Ensemble ${result.equipmentSet.code} créé.`);
+    setEquipmentSetForm(initialEquipmentSetForm);
+    await loadData();
+  }
+
+  async function submitEquipmentComponent(event) {
+    event.preventDefault();
+    setMessage("");
+    const position = quantitativeStocks.find((item) => item.id === equipmentComponentForm.stockPositionId);
+    const payload = equipmentComponentForm.type === "INDIVIDUAL"
+      ? { assetUnitId: equipmentComponentForm.assetUnitId, quantity: 1, notes: equipmentComponentForm.notes }
+      : { assetEntryId: position?.assetEntry?.id, sourceLocationId: position?.location?.id, quantity: equipmentComponentForm.quantity, notes: equipmentComponentForm.notes };
+    const response = await fetch(`/api/equipment-sets/${equipmentComponentForm.equipmentSetId}/components`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setMessage(result.error || "Ajout du composant impossible.");
+      return;
+    }
+    setMessage("Composant ajouté sans modification du patrimoine.");
+    setEquipmentComponentForm(initialEquipmentComponentForm);
+    await loadData();
+  }
+
+  async function disableEquipmentSetFromUi(id) {
+    if (!window.confirm("Désactiver logiquement cet ensemble ?")) return;
+    setMessage("");
+    const response = await fetch(`/api/equipment-sets/${id}`, { method: "DELETE" });
+    const result = await response.json();
+    if (!response.ok) {
+      setMessage(result.error || "Désactivation impossible.");
+      return;
+    }
+    setMessage("Ensemble désactivé logiquement.");
+    await loadData();
+  }
+
   if (!options) {
     return <p className="summary">Chargement du parc physique...</p>;
   }
 
   const selectedEntryItem = options.assetItems.find((item) => item.id === entry.assetItemId);
   const selectedTrackingMode = selectedEntryItem?.category?.trackingMode || "I";
+  const selectedEquipmentSet = equipmentSets.find((item) => item.id === equipmentComponentForm.equipmentSetId);
+  const usedAssetUnitIds = new Set(equipmentSets.flatMap((item) => item.components || []).map((component) => component.assetUnitId).filter(Boolean));
+  const compatibleEquipmentUnits = selectedEquipmentSet
+    ? units.filter((unit) => unit.location?.id === selectedEquipmentSet.locationId && !unit.deletedAt && unit.status !== "RETIRED" && !usedAssetUnitIds.has(unit.id))
+    : [];
+  const compatibleEquipmentStocks = selectedEquipmentSet
+    ? quantitativeStocks.filter((position) => position.location?.id === selectedEquipmentSet.locationId && position.availableQuantity > 0)
+    : [];
 
   return (
     <section className="reference-layout park-layout">
@@ -877,6 +946,58 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
           <label><span>Quantité à individualiser</span><input required type="number" min="1" step="1" max={individualization.availableQuantity} value={individualization.quantity} onChange={(event) => setIndividualization({ ...individualization, quantity: event.target.value })} /></label>
           <div className="form-actions"><button className="button" type="submit">Confirmer l'individualisation</button><button className="secondary" type="button" onClick={() => setIndividualization(null)}>Annuler</button></div>
         </form> : null}
+      </section>
+
+      <section className="panel park-recent-panel">
+        <div className="park-panel-title">
+          <h2>Ensembles installés</h2>
+          <p className="summary">Composition logique de patrimoines existants, sans création ni réservation de stock.</p>
+        </div>
+        <div className="summary-list park-summary-list">
+          {equipmentSets.map((equipmentSet) => (
+            <article className="summary-item park-summary-card" key={equipmentSet.id}>
+              <p className="fact-line"><strong>{equipmentSet.code} — {equipmentSet.name}</strong><span>{equipmentSet.status}</span></p>
+              <p className="summary-meta">Emplacement : {equipmentSet.location?.name || "-"}</p>
+              {equipmentSet.description ? <p className="summary-meta">{equipmentSet.description}</p> : null}
+              <ul className="compact-list">
+                {(equipmentSet.components || []).map((component) => (
+                  <li key={component.id}>
+                    {component.assetUnit
+                      ? `${component.assetUnit.assetCode} — ${component.assetUnit.assetItem?.name || "Unité individuelle"}`
+                      : `${component.assetEntry?.assetItem?.name || "Lot quantitatif"} — ${component.assetEntry?.entryNumber || "Lot"} — quantité ${component.quantity}`}
+                  </li>
+                ))}
+              </ul>
+              {!equipmentSet.components?.length ? <p className="summary-meta">Aucun composant.</p> : null}
+              {canWrite ? <div className="form-actions"><button className="secondary" type="button" onClick={() => disableEquipmentSetFromUi(equipmentSet.id)}>Désactiver</button></div> : null}
+            </article>
+          ))}
+          {!equipmentSets.length ? <p className="summary">Aucun ensemble installé actif.</p> : null}
+        </div>
+
+        {canWrite ? <div className="park-detail-grid detail-row">
+          <form className="form" onSubmit={submitEquipmentSet}>
+            <h3>Créer un ensemble</h3>
+            <label><span>Code</span><input required value={equipmentSetForm.code} onChange={(event) => setEquipmentSetForm({ ...equipmentSetForm, code: event.target.value })} /></label>
+            <label><span>Nom</span><input required value={equipmentSetForm.name} onChange={(event) => setEquipmentSetForm({ ...equipmentSetForm, name: event.target.value })} /></label>
+            <label><span>Emplacement</span><select required value={equipmentSetForm.locationId} onChange={(event) => setEquipmentSetForm({ ...equipmentSetForm, locationId: event.target.value })}><option value="">Choisir</option>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+            <label><span>Description</span><textarea value={equipmentSetForm.description} onChange={(event) => setEquipmentSetForm({ ...equipmentSetForm, description: event.target.value })} /></label>
+            <button className="button" type="submit">Créer l'ensemble</button>
+          </form>
+
+          <form className="form" onSubmit={submitEquipmentComponent}>
+            <h3>Ajouter un composant</h3>
+            <div className="info-box">Un composant quantitatif est descriptif : il ne réserve et ne décrémente pas le stock.</div>
+            <label><span>Ensemble</span><select required value={equipmentComponentForm.equipmentSetId} onChange={(event) => setEquipmentComponentForm({ ...initialEquipmentComponentForm, equipmentSetId: event.target.value })}><option value="">Choisir</option>{equipmentSets.map((item) => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}</select></label>
+            <label><span>Type</span><select value={equipmentComponentForm.type} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, type: event.target.value, assetUnitId: "", stockPositionId: "", quantity: 1 })}><option value="INDIVIDUAL">Unité individuelle</option><option value="QUANTITATIVE">Quantité d'un lot</option></select></label>
+            {equipmentComponentForm.type === "INDIVIDUAL" ? <label><span>Bien individuel compatible</span><select required value={equipmentComponentForm.assetUnitId} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, assetUnitId: event.target.value })}><option value="">Choisir</option>{compatibleEquipmentUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.assetCode} — {unit.assetItem?.name}</option>)}</select></label> : <>
+              <label><span>Lot quantitatif au même emplacement</span><select required value={equipmentComponentForm.stockPositionId} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, stockPositionId: event.target.value })}><option value="">Choisir</option>{compatibleEquipmentStocks.map((position) => <option key={position.id} value={position.id}>{position.assetEntry?.entryNumber} — {position.assetEntry?.assetItem?.name} — disponible {position.availableQuantity}</option>)}</select></label>
+              <label><span>Quantité descriptive</span><input required type="number" min="1" step="1" value={equipmentComponentForm.quantity} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, quantity: event.target.value })} /></label>
+            </>}
+            <label><span>Notes</span><textarea value={equipmentComponentForm.notes} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, notes: event.target.value })} /></label>
+            <button className="button" type="submit" disabled={!equipmentComponentForm.equipmentSetId}>Ajouter le composant</button>
+          </form>
+        </div> : null}
       </section>
 
       <div className="park-detail-grid detail-row">

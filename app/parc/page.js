@@ -5,6 +5,7 @@ import { authorizePrivatePage } from "@/lib/authorization-page";
 import { APP_PERMISSIONS, hasPermission } from "@/lib/authorization";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, ENTRY_TYPES, INFORMATION_STATUSES } from "@/lib/asset-constants";
 import { assetFileOptions } from "@/lib/asset-file-service";
+import { listEquipmentSets } from "@/lib/equipment-set-service";
 import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
 import AssetPark from "./asset-park";
 
@@ -40,7 +41,7 @@ const unitInclude = {
 };
 
 async function loadParkData() {
-  const [assetItems, assetCategories, locations, suppliers, units, entries, quantitativeStocks] = await Promise.all([
+  const [assetItems, assetCategories, locations, suppliers, units, entries, quantitativeStocks, equipmentSets] = await Promise.all([
     prisma.assetItem.findMany({
       where: { status: "ACTIVE", deletedAt: null },
       include: {
@@ -79,13 +80,20 @@ async function loadParkData() {
     prisma.quantitativeStockPosition.findMany({
       include: {
         location: { select: { id: true, name: true, code: true } },
-        assetEntry: { include: {
-          supplier: { select: { id: true, name: true, code: true } },
-          assetItem: { include: { category: { include: { parent: { include: { parent: true } } } } }
-        } }
+        assetEntry: {
+          include: {
+            supplier: { select: { id: true, name: true, code: true } },
+            assetItem: {
+              include: {
+                category: { include: { parent: { include: { parent: true } } } }
+              }
+            }
+          }
+        }
       },
       orderBy: { createdAt: "desc" }
-    })
+    }),
+    listEquipmentSets()
   ]);
 
   const accessibleUnits = await toAssetUnitsAccessDtos(units);
@@ -105,7 +113,8 @@ async function loadParkData() {
     },
     units: accessibleUnits,
     entries,
-    quantitativeStocks
+    quantitativeStocks,
+    equipmentSets
   }));
 }
 
@@ -135,7 +144,7 @@ export default async function ParkPage() {
           </Link>
         </div>
       </div>
-      <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialEntries={initialData.entries} initialQuantitativeStocks={initialData.quantitativeStocks} />
+      <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialEntries={initialData.entries} initialQuantitativeStocks={initialData.quantitativeStocks} initialEquipmentSets={initialData.equipmentSets} />
     </main>
   );
 }
