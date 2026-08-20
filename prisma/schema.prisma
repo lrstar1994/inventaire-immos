@@ -130,7 +130,13 @@ enum AssetTrackingMode {
   I
   Q
   QI
-  E
+  E  // Deprecated: ensembles installes geres par EquipmentSet
+}
+
+enum EquipmentSetStatus {
+  DRAFT
+  INSTALLED
+  DISABLED
 }
 
 enum AssetControlLevel {
@@ -209,6 +215,8 @@ model Location {
   quantitativeStockPositions QuantitativeStockPosition[]
   quantitativeLinesFrom QuantitativeMovementLine[] @relation("QuantitativeMovementFromLocation")
   quantitativeLinesTo   QuantitativeMovementLine[] @relation("QuantitativeMovementToLocation")
+  equipmentSets         EquipmentSet[]
+  equipmentSetComponents EquipmentSetComponent[] @relation("EquipmentSetComponentSourceLocation")
 
   @@index([name])
   @@index([parentId])
@@ -305,6 +313,7 @@ model AssetEntry {
   documentLines     AssetDocumentLine[]
   quantitativeStockPositions QuantitativeStockPosition[]
   quantitativeMovementLines  QuantitativeMovementLine[]
+  equipmentSetComponents     EquipmentSetComponent[]
 
   @@index([entryNumber])
   @@index([assetItemId])
@@ -348,6 +357,7 @@ model AssetUnit {
   documentLines     AssetDocumentLine[]
   movementLines     AssetMovementLine[]
   assetFiles        AssetFile[]
+  equipmentSetComponents EquipmentSetComponent[]
 
   @@index([assetCode])
   @@index([assetItemId])
@@ -479,6 +489,53 @@ model QuantitativeMovementLine {
   @@index([fromLocationId])
   @@index([toLocationId])
   @@map("quantitative_movement_lines")
+}
+
+model EquipmentSet {
+  id          String             @id @default(cuid())
+  code        String             @unique
+  name        String
+  description String?
+  locationId  String             @map("location_id")
+  status      EquipmentSetStatus @default(DRAFT)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  createdById String?            @map("created_by")
+  updatedById String?            @map("updated_by")
+  deletedAt   DateTime?          @map("deleted_at")
+  location    Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  components  EquipmentSetComponent[]
+
+  @@index([locationId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("equipment_sets")
+}
+
+model EquipmentSetComponent {
+  id               String       @id @default(cuid())
+  equipmentSetId   String       @map("equipment_set_id")
+  assetUnitId      String?      @map("asset_unit_id")
+  assetEntryId     String?      @map("asset_entry_id")
+  sourceLocationId String?      @map("source_location_id")
+  quantity         Int?
+  notes            String?
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  createdById      String?      @map("created_by")
+  updatedById      String?      @map("updated_by")
+  deletedAt        DateTime?    @map("deleted_at")
+  equipmentSet     EquipmentSet @relation(fields: [equipmentSetId], references: [id], onDelete: Restrict)
+  assetUnit        AssetUnit?   @relation(fields: [assetUnitId], references: [id], onDelete: Restrict)
+  assetEntry       AssetEntry?  @relation(fields: [assetEntryId], references: [id], onDelete: Restrict)
+  sourceLocation   Location?    @relation("EquipmentSetComponentSourceLocation", fields: [sourceLocationId], references: [id], onDelete: Restrict)
+
+  @@index([equipmentSetId])
+  @@index([assetUnitId])
+  @@index([assetEntryId])
+  @@index([sourceLocationId])
+  @@index([deletedAt])
+  @@map("equipment_set_components")
 }
 
 model AssetDocument {
