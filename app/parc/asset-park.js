@@ -44,6 +44,12 @@ function label(list, code) {
   return list.find((item) => item.code === code)?.label || code;
 }
 
+function assetItemOptionLabel(item) {
+  const family = item.category?.name || "Famille non renseignée";
+  const mode = item.category?.trackingMode ? ({ I: "Individuel", Q: "Quantité", QI: "Quantité individualisable", E: "Ensemble" }[item.category.trackingMode] || item.category.trackingMode) : "Mode non renseigné";
+  return `${item.name} — ${family} — ${mode}`;
+}
+
 function collectCategoryDescendants(categories, categoryId) {
   const ids = new Set([categoryId]);
   let changed = true;
@@ -467,7 +473,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             <select value={filters.assetItemId} onChange={(event) => { setFilters({ ...filters, assetItemId: event.target.value }); setShowDetails(false); }}>
               <option value="">Tous les articles / modeles</option>
               {filteredAssetItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
+                <option key={item.id} value={item.id}>{assetItemOptionLabel(item)}</option>
               ))}
             </select>
             <select value={filters.locationId} onChange={(event) => { setFilters({ ...filters, locationId: event.target.value }); setShowDetails(false); }}>
@@ -608,7 +614,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               <select required value={entry.assetItemId} onChange={(event) => setEntry({ ...entry, assetItemId: event.target.value, duplicateConfirmed: false, duplicateReason: "" })}>
                 <option value="">Choisir</option>
                 {options.assetItems.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
+                  <option key={item.id} value={item.id}>{assetItemOptionLabel(item)}</option>
                 ))}
               </select>
             </label>

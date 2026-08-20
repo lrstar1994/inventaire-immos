@@ -22,7 +22,11 @@ function categoryClient(categories = [], items = []) {
       count: async ({ where }) => categories.filter((item) => item.parentId === where.parentId && !item.deletedAt).length
     },
     assetItem: {
-      findFirst: async ({ where }) => items.find((item) => item.id === where.id && !item.deletedAt) || null,
+      findFirst: async ({ where }) => items.find((item) =>
+        !item.deletedAt &&
+        (!where.id || (typeof where.id === "string" ? item.id === where.id : item.id !== where.id.not)) &&
+        (!where.code || item.code === where.code)
+      ) || null,
       count: async ({ where }) => items.filter((item) => item.categoryId === where.categoryId && !item.deletedAt).length
     }
   };
@@ -104,8 +108,13 @@ test("les préfixes stables sont obligatoires pour les nouveaux codes", () => {
 
 test("une nouvelle Référence matériel doit cibler une FAMILY", async () => {
   const prismaClient = categoryClient([root, sub, family]);
-  assert.deepEqual(await validateAssetItemFamily({ prismaClient, body: { categoryId: "fam" } }), { categoryId: "fam" });
-  await assert.rejects(() => validateAssetItemFamily({ prismaClient, body: { categoryId: "cat" } }), /famille active/i);
+  assert.deepEqual(await validateAssetItemFamily({ prismaClient, body: { categoryId: "fam", code: "REF-TV-43" } }), { categoryId: "fam", code: "REF-TV-43" });
+  await assert.rejects(() => validateAssetItemFamily({ prismaClient, body: { categoryId: "cat", code: "REF-X" } }), /famille active/i);
+  await assert.rejects(() => validateAssetItemFamily({ prismaClient, body: { categoryId: "fam" } }), /code de la référence est obligatoire/i);
+  await assert.rejects(() => validateAssetItemFamily({
+    prismaClient: categoryClient([root, sub, family], [{ id: "existing", code: "REF-TV-43" }]),
+    body: { categoryId: "fam", code: "REF-TV-43" }
+  }), /déjà utilisé/i);
 });
 
 test("le mode I conserve le chemin individuel", () => {
@@ -146,7 +155,21 @@ test("l'API et l'interface exposent les trois concepts", async () => {
   assert.match(text, /hierarchyLevel/);
   assert.match(text, /trackingMode/);
   assert.match(text, /controlLevel/);
-  assert.match(text, /Références matériel/);
+  assert.match(text, /Références \/ Modèles/);
+});
+
+test("les Références / Modèles imposent une famille active et alimentent Nouvelle entrée", async () => {
+  const [api, manager, park] = await Promise.all([
+    readFile("app/api/asset-items/route.js", "utf8"),
+    readFile("app/referentiels/reference-manager.js", "utf8"),
+    readFile("app/parc/asset-park.js", "utf8")
+  ]);
+  assert.match(api, /required: \["name", "code", "categoryId"\]/);
+  assert.match(manager, /Références \/ Modèles/);
+  assert.match(manager, /Toutes les sous-catégories/);
+  assert.match(manager, /item\.hierarchyLevel === "FAMILY" && item\.status === "ACTIVE"/);
+  assert.match(park, /assetItemOptionLabel/);
+  assert.match(park, /item\.category\?\.trackingMode/);
 });
 
 test("/referentiels sépare les sélections Location et AssetCategory", async () => {

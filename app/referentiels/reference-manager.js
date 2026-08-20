@@ -52,18 +52,19 @@ const resources = {
     columns: ["name", "code", "hierarchyLevel", "parent", "trackingMode", "controlLevel"]
   },
   items: {
-    label: "Références matériel",
+    label: "Références / Modèles",
     endpoint: "/api/asset-items",
     fields: [
       { name: "name", label: "Nom", required: true },
-      { name: "code", label: "Code" },
+      { name: "code", label: "Code référence", required: true },
       { name: "description", label: "Description", textarea: true },
-      { name: "unitLabel", label: "Unite" },
+      { name: "unitLabel", label: "Unité" },
       { name: "categoryId", label: "Famille", relation: "categories", required: true, familyOnly: true },
       { name: "supplierId", label: "Fournisseur", relation: "suppliers" },
-      { name: "depreciationYears", label: "Duree indicative", type: "number" }
+      { name: "depreciationYears", label: "Durée d'amortissement", type: "number" },
+      { name: "status", label: "Statut", options: { ACTIVE: "Actif", DISABLED: "Inactif" } }
     ],
-    columns: ["name", "code", "category", "supplier"]
+    columns: ["code", "name", "rootCategory", "subcategory", "category", "trackingMode", "controlLevel", "unitLabel", "supplier"]
   }
 };
 
@@ -73,13 +74,23 @@ function emptyForm(resource) {
   return form;
 }
 
-function valueForColumn(item, column) {
+function itemCategoryPath(item, categories) {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const family = item.category || byId.get(item.categoryId);
+  const subcategory = family?.parentId ? byId.get(family.parentId) : null;
+  const category = subcategory?.parentId ? byId.get(subcategory.parentId) : null;
+  return { category, subcategory, family };
+}
+
+function valueForColumn(item, column, categories = []) {
   if (column === "parent") return item.parent?.name || "";
   if (column === "category") return item.category?.name || "";
   if (column === "supplier") return item.supplier?.name || "";
+  if (column === "rootCategory") return itemCategoryPath(item, categories).category?.name || "";
+  if (column === "subcategory") return itemCategoryPath(item, categories).subcategory?.name || "";
   if (column === "hierarchyLevel") return levelLabels[item.hierarchyLevel] || item.hierarchyLevel || "";
-  if (column === "trackingMode") return trackingLabels[item.trackingMode] || "-";
-  if (column === "controlLevel") return controlLabels[item.controlLevel] || "-";
+  if (column === "trackingMode") return trackingLabels[item.category?.trackingMode] || "-";
+  if (column === "controlLevel") return controlLabels[item.category?.controlLevel] || "-";
   return item[column] || "";
 }
 
@@ -106,6 +117,7 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
   const [editingId, setEditingId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [message, setMessage] = useState("");
+  const [itemFilters, setItemFilters] = useState({ categoryId: "", subcategoryId: "", familyId: "" });
 
   const config = resources[active];
 
@@ -114,7 +126,7 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
       fetch("/api/suppliers").then((response) => response.json()),
       fetch("/api/locations").then((response) => response.json()),
       fetch("/api/asset-categories").then((response) => response.json()),
-      fetch("/api/asset-items").then((response) => response.json())
+      fetch("/api/asset-items?includeDisabled=true").then((response) => response.json())
     ]);
 
     setData({
@@ -142,17 +154,25 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
 
   const filteredItems = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return data[active];
-    return data[active].filter((item) =>
+    const candidates = active === "items"
+      ? data.items.filter((item) => {
+        const path = itemCategoryPath(item, data.categories);
+        return (!itemFilters.categoryId || path.category?.id === itemFilters.categoryId) &&
+          (!itemFilters.subcategoryId || path.subcategory?.id === itemFilters.subcategoryId) &&
+          (!itemFilters.familyId || path.family?.id === itemFilters.familyId);
+      })
+      : data[active];
+    if (!term) return candidates;
+    return candidates.filter((item) =>
       [item.name, item.code, item.description, item.supplierType, item.locationType]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term))
     );
-  }, [active, data, query]);
+  }, [active, data, itemFilters, query]);
 
   function relationOptions(field, currentId) {
     let options = data[field.relation].filter((item) => item.id !== currentId);
-    if (field.familyOnly) options = options.filter((item) => item.hierarchyLevel === "FAMILY");
+    if (field.familyOnly) options = options.filter((item) => item.hierarchyLevel === "FAMILY" && item.status === "ACTIVE" && !item.deletedAt);
     if (active === "categories" && field.name === "parentId") {
       const expected = form.hierarchyLevel === "SUBCATEGORY" ? "CATEGORY" : "SUBCATEGORY";
       options = options.filter((item) => item.hierarchyLevel === expected);
@@ -244,6 +264,20 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
+            {active === "items" ? <div className="filter-row">
+              <select value={itemFilters.categoryId} onChange={(event) => setItemFilters({ categoryId: event.target.value, subcategoryId: "", familyId: "" })}>
+                <option value="">Toutes les catégories</option>
+                {data.categories.filter((item) => item.hierarchyLevel === "CATEGORY").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+              <select value={itemFilters.subcategoryId} onChange={(event) => setItemFilters({ ...itemFilters, subcategoryId: event.target.value, familyId: "" })}>
+                <option value="">Toutes les sous-catégories</option>
+                {data.categories.filter((item) => item.hierarchyLevel === "SUBCATEGORY" && (!itemFilters.categoryId || item.parentId === itemFilters.categoryId)).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+              <select value={itemFilters.familyId} onChange={(event) => setItemFilters({ ...itemFilters, familyId: event.target.value })}>
+                <option value="">Toutes les familles</option>
+                {data.categories.filter((item) => item.hierarchyLevel === "FAMILY" && (!itemFilters.subcategoryId || item.parentId === itemFilters.subcategoryId)).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div> : null}
           </div>
 
           <div className="table-wrap">
@@ -268,7 +302,7 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
                             {valueForColumn(item, column)}
                           </span>
                         ) : (
-                          valueForColumn(item, column)
+                          valueForColumn(item, column, data.categories)
                         )}
                       </td>
                     ))}
@@ -305,7 +339,7 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
                     <option value="">Aucun</option>
                     {relationOptions(field, editingId).map((option) => (
                       <option key={option.id} value={option.id}>
-                        {option.name}
+                        {field.familyOnly ? `${itemCategoryPath({ category: option }, data.categories).category?.name || ""} → ${itemCategoryPath({ category: option }, data.categories).subcategory?.name || ""} → ${option.name}` : option.name}
                       </option>
                     ))}
                   </select>

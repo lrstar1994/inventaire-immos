@@ -5,7 +5,7 @@ const config = {
   model: "assetItem",
   table: "asset_items",
   auditName: "article modele",
-  fields: ["name", "code", "description", "unitLabel", "categoryId", "supplierId", "status"],
+  fields: ["name", "code", "description", "unitLabel", "depreciationYears", "categoryId", "supplierId", "status"],
   validate: validateAssetItemFamily
 };
 

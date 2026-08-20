@@ -5,8 +5,8 @@ const config = {
   model: "assetItem",
   table: "asset_items",
   auditName: "article modele",
-  required: ["name", "categoryId"],
-  fields: ["name", "code", "description", "unitLabel", "categoryId", "supplierId", "status"],
+  required: ["name", "code", "categoryId"],
+  fields: ["name", "code", "description", "unitLabel", "depreciationYears", "categoryId", "supplierId", "status"],
   validate: validateAssetItemFamily,
   searchable: ["name", "code", "description"]
 };
