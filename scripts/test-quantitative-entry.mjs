@@ -11,19 +11,19 @@ const route = await readFile(new URL("../app/api/quantitative-stock-positions/ro
 test("13C-D: le flux Q crée atomiquement une entrée et une position, sans AssetUnit", () => {
   assert.match(service, /createQuantitativeAssetEntryWithPosition/);
   assert.match(service, /assetEntryId: entry\.id, locationId: entry\.locationId, availableQuantity: quantity/);
-  assert.match(service, /units: \[\], duplicateWarning: null, trackingMode: "Q"/);
+  assert.match(service, /units: \[\], duplicateWarning: null, trackingMode/);
   assert.match(service, /prismaClient\.\$transaction/);
 });
 
-test("13C-D: Q exige une quantité entière positive et QI/E restent protégés", () => {
+test("13C-D/F: Q et QI exigent une quantité entière positive et E reste protégé", () => {
   assert.match(service, /\^\[1-9\]\\d\*\$/);
   assert.match(service, /assertQuantitativeTrackingMode/);
   assert.match(referenceFoundation, /TRACKING_MODE_NOT_OPERATIONAL/);
-  assert.match(park, /trackingMode === "QI" \|\| trackingMode === "E"/);
+  assert.match(park, /trackingMode === "E"/);
 });
 
 test("13C-D: les documents Q produisent une seule ligne de quantité", () => {
-  assert.match(documents, /trackingMode === "Q"/);
+  assert.match(documents, /\["Q", "QI"\]\.includes/);
   assert.match(documents, /quantity: entry\.quantity/);
   assert.match(documents, /assetEntryId: entry\.id/);
   assert.match(documents, /continue;/);

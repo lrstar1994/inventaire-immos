@@ -80,6 +80,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   const [entries, setEntries] = useState(initialEntries);
   const [quantitativeStocks, setQuantitativeStocks] = useState(initialQuantitativeStocks);
   const [transfer, setTransfer] = useState(null);
+  const [individualization, setIndividualization] = useState(null);
   const [filters, setFilters] = useState({
     q: "",
     status: "",
@@ -353,7 +354,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     setDuplicateAlert(null);
     const selectedAssetItem = options.assetItems.find((item) => item.id === entry.assetItemId);
     const trackingMode = selectedAssetItem?.category?.trackingMode || "I";
-    if (trackingMode === "QI" || trackingMode === "E") {
+    if (trackingMode === "E") {
       setMessage("TRACKING_MODE_NOT_OPERATIONAL");
       return;
     }
@@ -381,7 +382,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
 
     const payload = {
       ...entry,
-      quantity: trackingMode === "Q" ? entry.quantity : Number.parseInt(entry.quantity, 10),
+      quantity: ["Q", "QI"].includes(trackingMode) ? entry.quantity : Number.parseInt(entry.quantity, 10),
       supplierId: entry.supplierKnown ? entry.supplierId || null : null,
       unitPrice: entry.priceKnown ? entry.unitPrice || null : null,
       totalPrice: entry.priceKnown ? entry.totalPrice || null : null,
@@ -403,7 +404,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
       return;
     }
 
-    setMessage(trackingMode === "Q"
+    setMessage(["Q", "QI"].includes(trackingMode)
       ? `Stock quantitatif de ${result.quantitativePosition.availableQuantity} créé depuis ${result.entry.entryNumber}.`
       : `${result.units.length} bien(s) cree(s) depuis ${result.entry.entryNumber}.`);
     setEntry(initialEntry);
@@ -460,6 +461,29 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     }
     setMessage(`Transfert de ${result.transferredQuantity} unité(s) enregistré.`);
     setTransfer(null);
+    await loadData();
+  }
+
+  async function submitIndividualization(event) {
+    event.preventDefault();
+    if (!individualization) return;
+    setMessage("");
+    const response = await fetch("/api/quantitative-stock-individualizations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        assetEntryId: individualization.assetEntryId,
+        locationId: individualization.locationId,
+        quantity: individualization.quantity
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setMessage(result.error || "Individualisation impossible.");
+      return;
+    }
+    setMessage(`${result.individualizedQuantity} unité(s) individualisée(s).`);
+    setIndividualization(null);
     await loadData();
   }
 
@@ -662,10 +686,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               </select>
             </label>
             {entry.assetItemId ? (
-              <div className={selectedTrackingMode === "Q" ? "info-box" : "warning-box"}>
+              <div className={["Q", "QI"].includes(selectedTrackingMode) ? "info-box" : "warning-box"}>
                 {selectedTrackingMode === "I" ? "Suivi individuel : chaque exemplaire sera individualisé." : null}
                 {selectedTrackingMode === "Q" ? "Suivi en quantité : aucune unité individuelle ne sera créée." : null}
-                {selectedTrackingMode === "QI" ? "Suivi en quantité, individualisation possible — bientôt disponible." : null}
+                {selectedTrackingMode === "QI" ? "Suivi en quantité individualisable : aucune unité ne sera créée automatiquement." : null}
                 {selectedTrackingMode === "E" ? "Ensemble / kit — bientôt disponible." : null}
               </div>
             ) : null}
@@ -808,7 +832,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               <textarea value={entry.notes} onChange={(event) => setEntry({ ...entry, notes: event.target.value })} />
             </label>
             {message ? <p className="form-message">{message}</p> : null}
-            <button className="button" type="submit" disabled={selectedTrackingMode === "QI" || selectedTrackingMode === "E"}>Creer l'entree</button>
+            <button className="button" type="submit" disabled={selectedTrackingMode === "E"}>Creer l'entree</button>
           </form>
         </aside> : null}
       </div>
@@ -826,11 +850,14 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
                 const item = position.assetEntry?.assetItem;
                 const family = item?.category;
                 return <tr key={position.id}>
-                  <td>{item?.name || "-"}</td><td>{family?.name || "-"}</td><td>Quantité</td><td>{position.assetEntry?.entryNumber || "-"}</td>
+                  <td>{item?.name || "-"}</td><td>{family?.name || "-"}</td><td>{family?.trackingMode === "QI" ? "Quantité individualisable" : "Quantité"}</td><td>{position.assetEntry?.entryNumber || "-"}</td>
                   <td>{position.location?.name || "-"}</td><td>{position.availableQuantity}</td><td>{position.assetEntry?.quantity}</td>
                   <td>{position.assetEntry?.supplier?.name || "-"}</td><td>{position.assetEntry?.entryDate ? String(position.assetEntry.entryDate).slice(0, 10) : "-"}</td>
                   <td>{position.assetEntry?.priceKnown ? (position.assetEntry.totalPrice ?? position.assetEntry.unitPrice ?? "-") : "-"}</td>
-                  {canWrite ? <td><button className="secondary" type="button" disabled={position.availableQuantity <= 0} onClick={() => setTransfer({ assetEntryId: position.assetEntry.id, entryNumber: position.assetEntry.entryNumber, itemName: item?.name || "Référence", fromLocationId: position.location.id, fromLocationName: position.location.name, availableQuantity: position.availableQuantity, toLocationId: "", quantity: 1, reason: "Transfert interne", notes: "" })}>Transférer</button></td> : null}
+                  {canWrite ? <td>
+                    {family?.trackingMode === "Q" ? <button className="secondary" type="button" disabled={position.availableQuantity <= 0} onClick={() => { setIndividualization(null); setTransfer({ assetEntryId: position.assetEntry.id, entryNumber: position.assetEntry.entryNumber, itemName: item?.name || "Référence", fromLocationId: position.location.id, fromLocationName: position.location.name, availableQuantity: position.availableQuantity, toLocationId: "", quantity: 1, reason: "Transfert interne", notes: "" }); }}>Transférer</button> : null}
+                    {family?.trackingMode === "QI" ? <button className="secondary" type="button" disabled={position.availableQuantity <= 0} onClick={() => { setTransfer(null); setIndividualization({ assetEntryId: position.assetEntry.id, entryNumber: position.assetEntry.entryNumber, itemName: item?.name || "Référence", locationId: position.location.id, locationName: position.location.name, availableQuantity: position.availableQuantity, quantity: 1 }); }}>Individualiser</button> : null}
+                  </td> : null}
                 </tr>;
               })}
               {!quantitativeStocks.length ? <tr><td colSpan={canWrite ? 11 : 10}>Aucun stock quantitatif enregistré.</td></tr> : null}
@@ -844,6 +871,11 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
           <label><span>Motif</span><input required value={transfer.reason} onChange={(event) => setTransfer({ ...transfer, reason: event.target.value })} /></label>
           <label><span>Notes</span><textarea value={transfer.notes} onChange={(event) => setTransfer({ ...transfer, notes: event.target.value })} /></label>
           <div className="form-actions"><button className="button" type="submit">Confirmer le transfert</button><button className="secondary" type="button" onClick={() => setTransfer(null)}>Annuler</button></div>
+        </form> : null}
+        {individualization ? <form className="form" onSubmit={submitIndividualization}>
+          <div className="info-box"><strong>{individualization.itemName} — {individualization.entryNumber}</strong><p>Emplacement : {individualization.locationName} · Disponible : {individualization.availableQuantity}</p></div>
+          <label><span>Quantité à individualiser</span><input required type="number" min="1" step="1" max={individualization.availableQuantity} value={individualization.quantity} onChange={(event) => setIndividualization({ ...individualization, quantity: event.target.value })} /></label>
+          <div className="form-actions"><button className="button" type="submit">Confirmer l'individualisation</button><button className="secondary" type="button" onClick={() => setIndividualization(null)}>Annuler</button></div>
         </form> : null}
       </section>
 
