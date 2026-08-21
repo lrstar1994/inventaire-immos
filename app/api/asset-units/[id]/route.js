@@ -9,10 +9,10 @@ import { getRequestUser } from "@/lib/request-user";
 import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 const include = {
-  assetItem: { select: { id: true, name: true, code: true, categoryId: true } },
+  assetItem: { select: { id: true, name: true, code: true, categoryId: true, category: { select: { trackingMode: true } } } },
   location: { select: { id: true, name: true, code: true } },
   supplier: { select: { id: true, name: true, code: true } },
-  entry: { select: { id: true, entryNumber: true, entryType: true, entryStatus: true, entryDate: true, quantity: true } },
+  entry: { select: { id: true, entryNumber: true, entryType: true, entryStatus: true, entryDate: true, quantity: true, assetFiles: { where: { deletedAt: null, fileKind: "MATERIAL_PHOTO", isPrimary: true }, orderBy: { createdAt: "desc" }, take: 1 } } },
   documentLines: {
     include: {
       document: { select: { id: true, documentNumber: true, documentType: true, status: true, documentDate: true } }

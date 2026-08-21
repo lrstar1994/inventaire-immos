@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ActionFeedback, { actionError, actionSuccess } from "@/app/components/action-feedback";
-import { AssetFileImage } from "./asset-file-access-view";
+import { AssetFileImage, AssetFileLink } from "./asset-file-access-view";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -40,6 +40,9 @@ const initialFileForm = {
   isPrimary: true,
   file: null
 };
+
+const initialEntryPhotoForm = { files: [], fileType: "GENERAL_VIEW", fileLabel: "", notes: "", isPrimary: false };
+const initialEntryDocumentForm = { files: [], fileType: "INVOICE", fileLabel: "", notes: "" };
 
 const initialEquipmentSetForm = { code: "", name: "", description: "", locationId: "" };
 const initialEquipmentComponentForm = { equipmentSetId: "", type: "INDIVIDUAL", assetUnitId: "", stockPositionId: "", quantity: 1, notes: "" };
@@ -104,6 +107,13 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   const [showDetails, setShowDetails] = useState(false);
   const [fileForm, setFileForm] = useState(initialFileForm);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [entryFileContext, setEntryFileContext] = useState(null);
+  const [entryFiles, setEntryFiles] = useState([]);
+  const [entryFilesLoading, setEntryFilesLoading] = useState(false);
+  const [entryPhotoForm, setEntryPhotoForm] = useState(initialEntryPhotoForm);
+  const [entryDocumentForm, setEntryDocumentForm] = useState(initialEntryDocumentForm);
+  const [entryPhotoInputKey, setEntryPhotoInputKey] = useState(0);
+  const [entryDocumentInputKey, setEntryDocumentInputKey] = useState(0);
 
   async function loadData() {
     const [nextOptions, nextUnits, nextEntries, nextStocks, nextEquipmentSets] = await Promise.all([
@@ -357,6 +367,91 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     await loadData();
   }
 
+  async function loadEntryFiles(context = entryFileContext) {
+    if (!context?.id) return;
+    setEntryFilesLoading(true);
+    try {
+      const response = await fetch(`/api/asset-entries/${context.id}/files`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Chargement des fichiers impossible.");
+      setEntryFiles(result.files || []);
+    } catch (error) {
+      setMessage(actionError(error.message));
+    } finally {
+      setEntryFilesLoading(false);
+    }
+  }
+
+  function openEntryFiles(context) {
+    setEntryFileContext(context);
+    setEntryFiles([]);
+    loadEntryFiles(context);
+  }
+
+  async function uploadEntryFiles(event, fileKind) {
+    event.preventDefault();
+    if (!entryFileContext) return;
+    const form = fileKind === "MATERIAL_PHOTO" ? entryPhotoForm : entryDocumentForm;
+    const files = Array.from(form.files || []);
+    if (!files.length) {
+      setMessage(actionError("Choisissez au moins un fichier."));
+      return;
+    }
+    let uploaded = 0;
+    for (const [index, file] of files.entries()) {
+      const formData = new FormData();
+      formData.append("fileKind", fileKind);
+      formData.append("fileType", form.fileType);
+      formData.append("fileLabel", form.fileLabel);
+      formData.append("notes", form.notes);
+      if (fileKind === "MATERIAL_PHOTO") formData.append("isPrimary", String(form.isPrimary && index === 0));
+      formData.append("file", file);
+      const response = await fetch(`/api/asset-entries/${entryFileContext.id}/files`, { method: "POST", body: formData });
+      const result = await response.json();
+      if (!response.ok) {
+        await loadEntryFiles();
+        setMessage(actionError(`${uploaded ? `${uploaded} fichier(s) ajouté(s). ` : ""}${result.error || "Ajout impossible."}`));
+        return;
+      }
+      uploaded += 1;
+    }
+    await loadEntryFiles();
+    if (fileKind === "MATERIAL_PHOTO") {
+      setEntryPhotoForm(initialEntryPhotoForm);
+      setEntryPhotoInputKey((current) => current + 1);
+    } else {
+      setEntryDocumentForm(initialEntryDocumentForm);
+      setEntryDocumentInputKey((current) => current + 1);
+    }
+    setMessage(actionSuccess({
+      title: fileKind === "MATERIAL_PHOTO" ? `${uploaded} photo${uploaded > 1 ? "s" : ""} ajoutée${uploaded > 1 ? "s" : ""}` : "Document justificatif ajouté",
+      message: `Le fichier est disponible sur l'entrée ${entryFileContext.entryNumber}.`,
+      item: entryFileContext.itemName,
+      code: entryFileContext.entryNumber,
+      status: "Disponible"
+    }));
+  }
+
+  async function setPrimaryEntryFile(fileId) {
+    const response = await fetch(`/api/asset-entries/${entryFileContext.id}/files/${fileId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPrimary: true })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(actionError(result.error || "Photo principale impossible."));
+    await loadEntryFiles();
+    setMessage(actionSuccess({ title: "Photo principale définie", message: `La galerie de l'entrée ${entryFileContext.entryNumber} a été actualisée.`, code: entryFileContext.entryNumber, status: "Photo principale" }));
+  }
+
+  async function deleteEntryFile(fileId, labelValue) {
+    const response = await fetch(`/api/asset-entries/${entryFileContext.id}/files/${fileId}`, { method: "DELETE" });
+    const result = await response.json();
+    if (!response.ok) return setMessage(actionError(result.error || "Suppression impossible."));
+    await loadEntryFiles();
+    setMessage(actionSuccess({ title: "Fichier supprimé", message: `${labelValue || "Le fichier"} n'apparaît plus parmi les fichiers actifs.`, code: entryFileContext.entryNumber, status: "Supprimé" }));
+  }
+
   async function submitEntry(event) {
     event.preventDefault();
     setMessage("");
@@ -414,6 +509,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     }
 
     const entryLocation = options.locations.find((item) => item.id === entry.locationId)?.name || "Emplacement renseigné";
+    const createdEntryContext = { id: result.entry.id, entryNumber: result.entry.entryNumber, quantity: result.entry.quantity, itemName: selectedAssetItem?.name || "Référence matériel", trackingMode };
     setMessage(actionSuccess({
       title: ["Q", "QI"].includes(trackingMode) ? "Entrée quantitative créée" : "Entrée individuelle créée",
       message: "La nouvelle entrée est visible dans le Parc physique.",
@@ -421,7 +517,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
       code: result.entry.entryNumber,
       status: "Validée",
       details: [{ label: "Quantité", value: result.entry.quantity }, { label: "Emplacement", value: entryLocation }],
-      action: { label: "Voir dans la liste", onClick: () => setFilters((current) => ({ ...current, assetItemId: result.entry.assetItemId })) }
+      actions: [
+        { label: "Ajouter des photos / pièces jointes", onClick: () => openEntryFiles(createdEntryContext) },
+        { label: "Créer une autre", onClick: () => document.getElementById("new-asset-entry-form")?.scrollIntoView({ behavior: "smooth", block: "start" }) }
+      ]
     }));
     setEntry(initialEntry);
     setDuplicateAlert(null);
@@ -753,7 +852,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             <h2>Nouvelle entree</h2>
             <p className="summary">Enregistrez des biens individuels ou une entrée suivie en quantité.</p>
           </div>
-          <form className="form" onSubmit={submitEntry}>
+          <form className="form" id="new-asset-entry-form" onSubmit={submitEntry}>
             <label>
               <span>Article / modele</span>
               <select required value={entry.assetItemId} onChange={(event) => setEntry({ ...entry, assetItemId: event.target.value, duplicateConfirmed: false, duplicateReason: "" })}>
@@ -914,6 +1013,51 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
         </aside> : null}
       </div>
 
+      {entryFileContext ? <section className="panel entry-files-panel" aria-labelledby="entry-files-title">
+        <div className="park-panel-title">
+          <div><h2 id="entry-files-title">Photos / pièces jointes</h2><p className="summary"><strong>{entryFileContext.entryNumber}</strong> — {entryFileContext.itemName} — quantité {entryFileContext.quantity}</p></div>
+          <button className="secondary" type="button" onClick={() => setEntryFileContext(null)}>Fermer</button>
+        </div>
+        {entryFilesLoading ? <p className="summary">Chargement…</p> : null}
+        <div className="entry-files-grid">
+          <section className="entry-file-section">
+            <h3>Photos du matériel</h3>
+            <div className="asset-thumbs">
+              {entryFiles.filter((file) => file.fileKind === "MATERIAL_PHOTO").map((file) => <article className="asset-thumb-card" key={file.id}>
+                <AssetFileImage file={file} alt={file.fileLabel || file.fileName || "Photo du matériel"} />
+                <strong>{file.fileLabel || file.fileName}</strong>
+                {file.isPrimary ? <span className="entry-file-badge">Principale</span> : null}
+                {canWrite ? <div className="form-actions">
+                  {!file.isPrimary ? <button className="secondary" type="button" onClick={() => setPrimaryEntryFile(file.id)}>Définir comme principale</button> : null}
+                  <button className="secondary danger" type="button" onClick={() => deleteEntryFile(file.id, "La photo")}>Supprimer</button>
+                </div> : null}
+              </article>)}
+              {!entryFiles.some((file) => file.fileKind === "MATERIAL_PHOTO") ? <p className="summary">Aucune photo ajoutée.</p> : null}
+            </div>
+            {canWrite ? <form className="form asset-upload-card" onSubmit={(event) => uploadEntryFiles(event, "MATERIAL_PHOTO")}>
+              <label><span>Photos (appareil ou galerie)</span><input key={entryPhotoInputKey} required multiple accept="image/*" type="file" onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, files: event.target.files })} /></label>
+              <label><span>Libellé</span><input value={entryPhotoForm.fileLabel} onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, fileLabel: event.target.value })} /></label>
+              <label><span>Type</span><select value={entryPhotoForm.fileType} onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, fileType: event.target.value })}>{(options.assetFileOptions?.fileTypes || []).filter((item) => !["INVOICE", "WARRANTY"].includes(item.code)).map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
+              <label className="checkbox-line"><input type="checkbox" checked={entryPhotoForm.isPrimary} onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, isPrimary: event.target.checked })} /><span>Définir la première comme photo principale</span></label>
+              <button className="button" type="submit">Ajouter les photos</button>
+            </form> : null}
+          </section>
+          <section className="entry-file-section">
+            <h3>Documents justificatifs</h3>
+            <ul className="file-list">
+              {entryFiles.filter((file) => file.fileKind === "SUPPORTING_DOCUMENT").map((file) => <li key={file.id}><div><strong>{file.fileLabel || file.fileName}</strong><small>{fileTypeLabel(file.fileType)}</small></div><div className="form-actions"><AssetFileLink file={file}>Ouvrir</AssetFileLink>{canWrite ? <button className="secondary danger" type="button" onClick={() => deleteEntryFile(file.id, "Le document")}>Supprimer</button> : null}</div></li>)}
+              {!entryFiles.some((file) => file.fileKind === "SUPPORTING_DOCUMENT") ? <li>Aucun document justificatif ajouté.</li> : null}
+            </ul>
+            {canWrite ? <form className="form asset-upload-card" onSubmit={(event) => uploadEntryFiles(event, "SUPPORTING_DOCUMENT")}>
+              <label><span>Documents</span><input key={entryDocumentInputKey} required multiple accept="image/*,.pdf" type="file" onChange={(event) => setEntryDocumentForm({ ...entryDocumentForm, files: event.target.files })} /></label>
+              <label><span>Libellé</span><input value={entryDocumentForm.fileLabel} onChange={(event) => setEntryDocumentForm({ ...entryDocumentForm, fileLabel: event.target.value })} /></label>
+              <label><span>Nature</span><select value={entryDocumentForm.fileType} onChange={(event) => setEntryDocumentForm({ ...entryDocumentForm, fileType: event.target.value })}><option value="INVOICE">Facture</option><option value="WARRANTY">Garantie</option><option value="OTHER">Autre justificatif</option></select></label>
+              <button className="button" type="submit">Ajouter les documents</button>
+            </form> : null}
+          </section>
+        </div>
+      </section> : null}
+
       <section className="panel park-recent-panel">
         <div className="park-panel-title">
           <h2>Stocks quantitatifs</h2>
@@ -1022,6 +1166,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
                   <th>Modele</th>
                   <th>Quantite</th>
                   <th>Statut</th>
+                  <th>Fichiers</th>
                 </tr>
               </thead>
               <tbody>
@@ -1031,6 +1176,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
                     <td>{item.assetItem?.name}</td>
                     <td>{item.quantity}</td>
                     <td>{label(options.entryStatuses, item.entryStatus)}</td>
+                    <td><button className="secondary" type="button" onClick={() => openEntryFiles({ id: item.id, entryNumber: item.entryNumber, quantity: item.quantity, itemName: item.assetItem?.name || "Référence matériel" })}>Photos / pièces jointes</button></td>
                   </tr>
                 ))}
               </tbody>

@@ -18,7 +18,13 @@ function label(list, code) {
 }
 
 function primaryFile(unit) {
-  return unit?.assetFiles?.find((file) => file.isPrimary) || unit?.assetFiles?.find((file) => file.mimeType?.startsWith("image/")) || null;
+  return unit?.assetFiles?.find((file) => file.isPrimary) || entryPhotoFallback(unit) || unit?.assetFiles?.find((file) => file.mimeType?.startsWith("image/")) || null;
+}
+
+function entryPhotoFallback(unit) {
+  if (unit?.assetFiles?.some((file) => file.isPrimary)) return null;
+  if (unit?.assetItem?.category?.trackingMode !== "I" || unit?.entry?.quantity !== 1) return null;
+  return unit?.entry?.assetFiles?.find((file) => file.fileKind === "MATERIAL_PHOTO" && file.isPrimary) || null;
 }
 
 function imageFiles(unit) {
@@ -209,6 +215,7 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
   }
 
   const mainPhoto = primaryFile(unit);
+  const usesEntryPhoto = Boolean(mainPhoto && entryPhotoFallback(unit)?.id === mainPhoto.id);
   const entryDoc = entryDocument(unit);
   const lastMvt = lastMovement(unit);
 
@@ -226,7 +233,7 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
           ) : (
             <div className="asset-photo-placeholder">Photo</div>
           )}
-          <span>Photo principale</span>
+          <span>{usesEntryPhoto ? "Photo d’entrée" : "Photo principale"}</span>
         </div>
         <div className="asset-detail-title">
           <p className="eyebrow">Code du bien</p>
@@ -334,7 +341,7 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
                   alt={`Photo principale ${unit.assetCode}`}
                   file={mainPhoto}
                 />
-                <span>Photo principale</span>
+                <span>{usesEntryPhoto ? "Photo d’entrée" : "Photo principale"}</span>
               </div>
             ) : (
               <p className="summary">Aucune photo principale.</p>

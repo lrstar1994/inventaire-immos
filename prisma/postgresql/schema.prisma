@@ -140,6 +140,13 @@ enum AssetFileType {
   @@schema("immos")
 }
 
+enum AssetFileKind {
+  MATERIAL_PHOTO
+  SUPPORTING_DOCUMENT
+
+  @@schema("immos")
+}
+
 enum StorageProvider {
   LOCAL
   SUPABASE
@@ -354,6 +361,7 @@ model AssetEntry {
   quantitativeStockPositions QuantitativeStockPosition[]
   quantitativeMovementLines  QuantitativeMovementLine[]
   equipmentSetComponents     EquipmentSetComponent[]
+  assetFiles                 AssetFile[]
 
   @@index([entryNumber])
   @@index([assetItemId])
@@ -414,7 +422,9 @@ model AssetUnit {
 
 model AssetFile {
   id              String           @id @default(cuid())
-  assetUnitId     String           @map("asset_unit_id")
+  assetUnitId     String?          @map("asset_unit_id")
+  assetEntryId    String?          @map("asset_entry_id")
+  fileKind        AssetFileKind?   @map("file_kind")
   fileType        AssetFileType    @map("file_type")
   fileLabel       String?          @map("file_label")
   fileName        String           @map("file_name")
@@ -430,9 +440,11 @@ model AssetFile {
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(3)
-  assetUnit       AssetUnit        @relation(fields: [assetUnitId], references: [id], onDelete: Restrict)
+  assetUnit       AssetUnit?       @relation(fields: [assetUnitId], references: [id], onDelete: Restrict)
+  assetEntry      AssetEntry?      @relation(fields: [assetEntryId], references: [id], onDelete: Restrict)
 
   @@index([assetUnitId])
+  @@index([assetEntryId])
   @@index([fileType])
   @@index([isPrimary])
   @@index([deletedAt])
