@@ -1,0 +1,2 @@
+-- AssetFileType is stored as TEXT by SQLite. The Prisma enum vocabulary is
+-- extended without rebuilding asset_files or rewriting historical rows.

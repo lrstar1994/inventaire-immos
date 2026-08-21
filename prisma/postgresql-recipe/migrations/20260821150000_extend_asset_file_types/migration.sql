@@ -1,0 +1,15 @@
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'FRONT';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'REAR';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'LEFT_SIDE';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'RIGHT_SIDE';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'TOP';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'BOTTOM';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'BRAND_MODEL';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'SERIAL_NUMBER';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'ACCESSORIES';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'VISIBLE_DEFECT';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'FULL_LOT';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'REPRESENTATIVE_SAMPLE';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'PACKAGING';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'DELIVERY_NOTE';
+ALTER TYPE "immos_recipe_phase8"."AssetFileType" ADD VALUE IF NOT EXISTS 'MANUAL';

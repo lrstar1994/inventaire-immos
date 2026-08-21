@@ -41,8 +41,8 @@ const initialFileForm = {
   file: null
 };
 
-const initialEntryPhotoForm = { files: [], fileType: "GENERAL_VIEW", fileLabel: "", notes: "", isPrimary: false };
-const initialEntryDocumentForm = { files: [], fileType: "INVOICE", fileLabel: "", notes: "" };
+const initialEntryPhotoForm = { files: [], fileType: "OTHER", fileLabel: "", notes: "", isPrimary: false };
+const initialEntryDocumentForm = { files: [], fileType: "OTHER", fileLabel: "", notes: "" };
 
 const initialEquipmentSetForm = { code: "", name: "", description: "", locationId: "" };
 const initialEquipmentComponentForm = { equipmentSetId: "", type: "INDIVIDUAL", assetUnitId: "", stockPositionId: "", quantity: 1, notes: "" };
@@ -310,6 +310,13 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     return options.assetFileOptions?.fileTypes?.find((item) => item.code === code)?.label || code;
   }
 
+  function entryFileTypeOptions(fileKind) {
+    const category = fileKind === "MATERIAL_PHOTO" ? "image" : "document";
+    return (options.assetFileOptions?.fileTypes || []).filter((item) =>
+      item.code !== "MAIN_PHOTO" && (item.category === category || item.category === "mixed")
+    );
+  }
+
   async function submitAssetFile() {
     if (!selected) return;
     setMessage("");
@@ -442,6 +449,18 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     if (!response.ok) return setMessage(actionError(result.error || "Photo principale impossible."));
     await loadEntryFiles();
     setMessage(actionSuccess({ title: "Photo principale définie", message: `La galerie de l'entrée ${entryFileContext.entryNumber} a été actualisée.`, code: entryFileContext.entryNumber, status: "Photo principale" }));
+  }
+
+  async function updateEntryFileType(fileId, fileType) {
+    const response = await fetch(`/api/asset-entries/${entryFileContext.id}/files/${fileId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileType })
+    });
+    const result = await response.json();
+    if (!response.ok) return setMessage(actionError(result.error || "Modification de la catégorie impossible."));
+    await loadEntryFiles();
+    setMessage(actionSuccess({ title: "Catégorie mise à jour", message: `Le fichier de l'entrée ${entryFileContext.entryNumber} a été reclassé.`, code: entryFileContext.entryNumber, status: fileType === "OTHER" ? "Non classé" : fileTypeLabel(fileType) }));
   }
 
   async function deleteEntryFile(fileId, labelValue) {
@@ -1026,8 +1045,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               {entryFiles.filter((file) => file.fileKind === "MATERIAL_PHOTO").map((file) => <article className="asset-thumb-card" key={file.id}>
                 <AssetFileImage file={file} alt={file.fileLabel || file.fileName || "Photo du matériel"} />
                 <strong>{file.fileLabel || file.fileName}</strong>
+                <small>{file.fileType === "OTHER" ? "Non classée" : fileTypeLabel(file.fileType)}</small>
                 {file.isPrimary ? <span className="entry-file-badge">Principale</span> : null}
                 {canWrite ? <div className="form-actions">
+                  <label><span>Catégorie</span><select aria-label={`Catégorie de ${file.fileLabel || file.fileName}`} value={file.fileType} onChange={(event) => updateEntryFileType(file.id, event.target.value)}>{entryFileTypeOptions("MATERIAL_PHOTO").map((item) => <option key={item.code} value={item.code}>{item.code === "OTHER" ? "Non classée" : item.label}</option>)}</select></label>
                   {!file.isPrimary ? <button className="secondary" type="button" onClick={() => setPrimaryEntryFile(file.id)}>Définir comme principale</button> : null}
                   <button className="secondary danger" type="button" onClick={() => deleteEntryFile(file.id, "La photo")}>Supprimer</button>
                 </div> : null}
@@ -1037,7 +1058,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             {canWrite ? <form className="form asset-upload-card" onSubmit={(event) => uploadEntryFiles(event, "MATERIAL_PHOTO")}>
               <label><span>Photos (appareil ou galerie)</span><input key={entryPhotoInputKey} required multiple accept="image/*" type="file" onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, files: event.target.files })} /></label>
               <label><span>Libellé</span><input value={entryPhotoForm.fileLabel} onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, fileLabel: event.target.value })} /></label>
-              <label><span>Type</span><select value={entryPhotoForm.fileType} onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, fileType: event.target.value })}>{(options.assetFileOptions?.fileTypes || []).filter((item) => !["INVOICE", "WARRANTY"].includes(item.code)).map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
+              <label><span>Catégorie (facultatif)</span><select value={entryPhotoForm.fileType} onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, fileType: event.target.value })}>{entryFileTypeOptions("MATERIAL_PHOTO").map((item) => <option key={item.code} value={item.code}>{item.code === "OTHER" ? "Non classée" : item.label}</option>)}</select></label>
               <label className="checkbox-line"><input type="checkbox" checked={entryPhotoForm.isPrimary} onChange={(event) => setEntryPhotoForm({ ...entryPhotoForm, isPrimary: event.target.checked })} /><span>Définir la première comme photo principale</span></label>
               <button className="button" type="submit">Ajouter les photos</button>
             </form> : null}
@@ -1045,13 +1066,13 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
           <section className="entry-file-section">
             <h3>Documents justificatifs</h3>
             <ul className="file-list">
-              {entryFiles.filter((file) => file.fileKind === "SUPPORTING_DOCUMENT").map((file) => <li key={file.id}><div><strong>{file.fileLabel || file.fileName}</strong><small>{fileTypeLabel(file.fileType)}</small></div><div className="form-actions"><AssetFileLink file={file}>Ouvrir</AssetFileLink>{canWrite ? <button className="secondary danger" type="button" onClick={() => deleteEntryFile(file.id, "Le document")}>Supprimer</button> : null}</div></li>)}
+              {entryFiles.filter((file) => file.fileKind === "SUPPORTING_DOCUMENT").map((file) => <li key={file.id}><div><strong>{file.fileLabel || file.fileName}</strong><small>{file.fileType === "OTHER" ? "Autre document" : fileTypeLabel(file.fileType)}</small></div><div className="form-actions">{canWrite ? <select aria-label={`Catégorie de ${file.fileLabel || file.fileName}`} value={file.fileType} onChange={(event) => updateEntryFileType(file.id, event.target.value)}>{entryFileTypeOptions("SUPPORTING_DOCUMENT").map((item) => <option key={item.code} value={item.code}>{item.code === "OTHER" ? "Autre document" : item.label}</option>)}</select> : null}<AssetFileLink file={file}>Ouvrir</AssetFileLink>{canWrite ? <button className="secondary danger" type="button" onClick={() => deleteEntryFile(file.id, "Le document")}>Supprimer</button> : null}</div></li>)}
               {!entryFiles.some((file) => file.fileKind === "SUPPORTING_DOCUMENT") ? <li>Aucun document justificatif ajouté.</li> : null}
             </ul>
             {canWrite ? <form className="form asset-upload-card" onSubmit={(event) => uploadEntryFiles(event, "SUPPORTING_DOCUMENT")}>
               <label><span>Documents</span><input key={entryDocumentInputKey} required multiple accept="image/*,.pdf" type="file" onChange={(event) => setEntryDocumentForm({ ...entryDocumentForm, files: event.target.files })} /></label>
               <label><span>Libellé</span><input value={entryDocumentForm.fileLabel} onChange={(event) => setEntryDocumentForm({ ...entryDocumentForm, fileLabel: event.target.value })} /></label>
-              <label><span>Nature</span><select value={entryDocumentForm.fileType} onChange={(event) => setEntryDocumentForm({ ...entryDocumentForm, fileType: event.target.value })}><option value="INVOICE">Facture</option><option value="WARRANTY">Garantie</option><option value="OTHER">Autre justificatif</option></select></label>
+              <label><span>Catégorie (facultatif)</span><select value={entryDocumentForm.fileType} onChange={(event) => setEntryDocumentForm({ ...entryDocumentForm, fileType: event.target.value })}>{entryFileTypeOptions("SUPPORTING_DOCUMENT").map((item) => <option key={item.code} value={item.code}>{item.code === "OTHER" ? "Non classé" : item.label}</option>)}</select></label>
               <button className="button" type="submit">Ajouter les documents</button>
             </form> : null}
           </section>
