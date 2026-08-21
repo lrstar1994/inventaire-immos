@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ActionFeedback, { actionError, actionSuccess } from "@/app/components/action-feedback";
 import { AssetFileImage } from "./asset-file-access-view";
 
 function today() {
@@ -319,10 +320,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     const response = await fetch("/api/asset-files", { method: "POST", body: formData });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Ajout du fichier impossible.");
+      setMessage(actionError(result.error || "Ajout du fichier impossible."));
       return;
     }
-    setMessage("Fichier ajoute au bien.");
+    setMessage(actionSuccess({ title: "Fichier ajouté", message: "Le fichier est maintenant visible sur la fiche du bien.", item: selected?.assetItem?.name || "Bien", code: selected?.assetCode, status: "Disponible", action: { label: "Ouvrir la fiche", href: selected ? `/parc/${selected.id}` : "/parc" } }));
     setFileForm(initialFileForm);
     setFileInputKey((current) => current + 1);
     await loadData();
@@ -337,10 +338,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Photo principale impossible.");
+      setMessage(actionError(result.error || "Photo principale impossible."));
       return;
     }
-    setMessage("Photo principale mise a jour.");
+    setMessage(actionSuccess({ title: "Photo principale définie", message: "La fiche affiche maintenant cette image en priorité.", item: selected?.assetItem?.name || "Bien", code: selected?.assetCode, status: "Photo principale", action: { label: "Ouvrir la fiche", href: selected ? `/parc/${selected.id}` : "/parc" } }));
     await loadData();
   }
 
@@ -349,10 +350,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     const response = await fetch(`/api/asset-files/${fileId}`, { method: "DELETE" });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Suppression impossible.");
+      setMessage(actionError(result.error || "Suppression impossible."));
       return;
     }
-    setMessage("Fichier supprime logiquement.");
+    setMessage(actionSuccess({ title: "Fichier supprimé", message: "Le fichier reste tracé mais n'est plus visible parmi les fichiers actifs.", item: selected?.assetItem?.name || "Bien", code: selected?.assetCode, status: "Supprimé", action: { label: "Ouvrir la fiche", href: selected ? `/parc/${selected.id}` : "/parc" } }));
     await loadData();
   }
 
@@ -408,13 +409,20 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
 
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Creation impossible.");
+      setMessage(actionError(result.error || "Création impossible."));
       return;
     }
 
-    setMessage(["Q", "QI"].includes(trackingMode)
-      ? `Stock quantitatif de ${result.quantitativePosition.availableQuantity} créé depuis ${result.entry.entryNumber}.`
-      : `${result.units.length} bien(s) cree(s) depuis ${result.entry.entryNumber}.`);
+    const entryLocation = options.locations.find((item) => item.id === entry.locationId)?.name || "Emplacement renseigné";
+    setMessage(actionSuccess({
+      title: ["Q", "QI"].includes(trackingMode) ? "Entrée quantitative créée" : "Entrée individuelle créée",
+      message: "La nouvelle entrée est visible dans le Parc physique.",
+      item: selectedAssetItem?.name || "Référence matériel",
+      code: result.entry.entryNumber,
+      status: "Validée",
+      details: [{ label: "Quantité", value: result.entry.quantity }, { label: "Emplacement", value: entryLocation }],
+      action: { label: "Voir dans la liste", onClick: () => setFilters((current) => ({ ...current, assetItemId: result.entry.assetItemId })) }
+    }));
     setEntry(initialEntry);
     setDuplicateAlert(null);
     await loadData();
@@ -438,11 +446,11 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
 
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Modification impossible.");
+      setMessage(actionError(result.error || "Modification impossible."));
       return;
     }
 
-    setMessage(`Bien ${result.unit.assetCode} mis a jour.`);
+    setMessage(actionSuccess({ title: "Bien mis à jour", message: "La fiche et la liste affichent les nouvelles informations.", item: result.unit.assetItem?.name || selected.assetItem?.name || "Bien", code: result.unit.assetCode, status: label(options.statuses, result.unit.status), action: { label: "Ouvrir la fiche", href: `/parc/${result.unit.id}` } }));
     await loadData();
   }
 
@@ -464,10 +472,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Transfert impossible.");
+      setMessage(actionError(result.error || "Transfert impossible."));
       return;
     }
-    setMessage(`Transfert de ${result.transferredQuantity} unité(s) enregistré.`);
+    setMessage(actionSuccess({ title: "Transfert quantitatif enregistré", message: "Les positions source et destination ont été actualisées.", item: transfer.itemName, code: transfer.entryNumber, status: "Transféré", details: [{ label: "Quantité", value: result.transferredQuantity }, { label: "Destination", value: options.locations.find((item) => item.id === transfer.toLocationId)?.name || "Emplacement choisi" }], action: { label: "Voir les stocks", onClick: () => setTransfer(null) } }));
     setTransfer(null);
     await loadData();
   }
@@ -487,10 +495,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Individualisation impossible.");
+      setMessage(actionError(result.error || "Individualisation impossible."));
       return;
     }
-    setMessage(`${result.individualizedQuantity} unité(s) individualisée(s).`);
+    setMessage(actionSuccess({ title: "Individualisation terminée", message: "Les nouveaux biens sont visibles dans la liste des biens individualisés.", item: individualization.itemName, code: individualization.entryNumber, status: "Individualisé", details: [{ label: "Quantité", value: result.individualizedQuantity }, { label: "Emplacement", value: individualization.locationName }], action: { label: "Voir les biens", onClick: () => setShowDetails(true) } }));
     setIndividualization(null);
     await loadData();
   }
@@ -505,10 +513,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Création de l'ensemble impossible.");
+      setMessage(actionError(result.error || "Création de l'ensemble impossible."));
       return;
     }
-    setMessage(`Ensemble ${result.equipmentSet.code} créé.`);
+    setMessage(actionSuccess({ title: "Ensemble installé créé", message: "Vous pouvez maintenant lui ajouter des composants.", item: result.equipmentSet.name, code: result.equipmentSet.code, status: "Brouillon", details: [{ label: "Emplacement", value: options.locations.find((item) => item.id === result.equipmentSet.locationId)?.name || "Emplacement choisi" }] }));
     setEquipmentSetForm(initialEquipmentSetForm);
     await loadData();
   }
@@ -527,10 +535,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Ajout du composant impossible.");
+      setMessage(actionError(result.error || "Ajout du composant impossible."));
       return;
     }
-    setMessage("Composant ajouté sans modification du patrimoine.");
+    setMessage(actionSuccess({ title: "Composant ajouté", message: "La composition est mise à jour sans modifier le patrimoine ni le stock.", item: selectedEquipmentSet?.name || "Ensemble installé", code: selectedEquipmentSet?.code, status: "Composant actif", action: { label: "Voir l'ensemble", onClick: () => setEquipmentComponentForm((current) => ({ ...current, equipmentSetId: selectedEquipmentSet?.id || "" })) } }));
     setEquipmentComponentForm(initialEquipmentComponentForm);
     await loadData();
   }
@@ -541,10 +549,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
     const response = await fetch(`/api/equipment-sets/${id}`, { method: "DELETE" });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Désactivation impossible.");
+      setMessage(actionError(result.error || "Désactivation impossible."));
       return;
     }
-    setMessage("Ensemble désactivé logiquement.");
+    setMessage(actionSuccess({ title: "Ensemble désactivé", message: "L'ensemble reste conservé dans l'historique.", item: result.equipmentSet.name, code: result.equipmentSet.code, status: "Désactivé" }));
     await loadData();
   }
 
@@ -565,6 +573,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
 
   return (
     <section className="reference-layout park-layout">
+      <ActionFeedback feedback={message} onClose={() => setMessage("")} />
       <div className="park-main-grid">
         <section className="panel park-search-panel">
           <div className="panel-heading">
@@ -900,7 +909,6 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               <span>Notes</span>
               <textarea value={entry.notes} onChange={(event) => setEntry({ ...entry, notes: event.target.value })} />
             </label>
-            {message ? <p className="form-message">{message}</p> : null}
             <button className="button" type="submit" disabled={selectedTrackingMode === "E"}>Creer l'entree</button>
           </form>
         </aside> : null}

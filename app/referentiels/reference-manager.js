@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ActionFeedback, { actionError, actionSuccess } from "@/app/components/action-feedback";
 
 const levelLabels = { CATEGORY: "Catégorie", SUBCATEGORY: "Sous-catégorie", FAMILY: "Famille" };
 const trackingLabels = { I: "Individuel", Q: "Quantité", QI: "Quantité individualisable", E: "Ensemble" };
@@ -206,9 +207,9 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
       body: JSON.stringify(payload)
     });
 
+    const result = await response.json();
     if (!response.ok) {
-      const error = await response.json();
-      setMessage(error.error || "Operation impossible.");
+      setMessage(actionError(result.error || "Opération impossible."));
       return;
     }
 
@@ -216,19 +217,33 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
     setForm(emptyForm(active));
     setEditingId(null);
     setSelectedItem(null);
-    setMessage(editingId ? "Modification enregistree." : "Creation enregistree.");
+    setMessage(actionSuccess({
+      title: editingId ? "Modification enregistrée" : "Création enregistrée",
+      message: `${result.item.name} est maintenant visible dans la liste ${config.label.toLowerCase()}.`,
+      item: result.item.name,
+      code: result.item.code || "Non renseigné",
+      status: result.item.status === "DISABLED" ? "Inactif" : "Actif",
+      action: { label: "Voir dans la liste", onClick: () => setQuery(result.item.code || result.item.name) }
+    }));
   }
 
   async function disableItem(item) {
     const response = await fetch(`${config.endpoint}/${item.id}`, { method: "DELETE" });
+    const result = await response.json();
     if (!response.ok) {
-      const error = await response.json();
-      setMessage(error.error || "Desactivation impossible.");
+      setMessage(actionError(result.error || "Désactivation impossible."));
       return;
     }
     await loadAll();
     setSelectedItem(null);
-    setMessage("Element desactive.");
+    setMessage(actionSuccess({
+      title: "Élément désactivé",
+      message: `${result.item.name} reste conservé dans l'historique et n'est plus actif.`,
+      item: result.item.name,
+      code: result.item.code || "Non renseigné",
+      status: "Inactif",
+      action: { label: "Voir dans la liste", onClick: () => setQuery(result.item.code || result.item.name) }
+    }));
   }
 
   return (
@@ -248,6 +263,8 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
           </Link>
         ))}
       </nav>
+
+      <ActionFeedback feedback={message} onClose={() => setMessage("")} />
 
       <div className="reference-grid referential-grid">
         <section className="panel">
@@ -377,7 +394,6 @@ export default function ReferenceManager({ canWrite = false, initialActive = "su
                 )}
               </label>
             ))}
-            {message ? <p className="form-message">{message}</p> : null}
             <div className="form-actions">
               <button className="button" type="submit">
                 {editingId ? "Enregistrer" : "Creer"}

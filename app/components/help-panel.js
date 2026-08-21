@@ -61,7 +61,12 @@ export default function HelpPanel() {
 
   return (
     <details className="help-widget">
-      <summary className="help-toggle">Comprendre l'ecran</summary>
+      <summary className="help-toggle" aria-label="Comprendre l’écran">
+        <span className="help-toggle-desktop">Comprendre l’écran</span>
+        <span className="help-toggle-mobile" aria-hidden="true">
+          ? Aide
+        </span>
+      </summary>
       <aside className="help-panel" aria-label="Aide logique">
         <strong>{help.title}</strong>
         <ol>

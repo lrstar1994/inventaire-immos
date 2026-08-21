@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ActionFeedback, { actionError, actionSuccess } from "@/app/components/action-feedback";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -109,11 +110,19 @@ export default function DocumentManager({ canWrite = false, initialOptions = nul
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Creation du document impossible.");
+      setMessage(actionError(result.error || "Création du document impossible."));
       return;
     }
 
-    setMessage(`Document brouillon ${result.document.documentNumber} cree avec ${result.document.entries.length} entree(s) et ${result.document.lines.length} bien(s).`);
+    setMessage(actionSuccess({
+      title: "Brouillon créé",
+      message: "Le document est disponible dans la liste et peut maintenant être validé.",
+      item: result.document.title || "Document",
+      code: result.document.documentNumber,
+      status: "Brouillon",
+      details: [{ label: "Entrées", value: result.document.entries.length }, { label: "Lignes", value: result.document.lines.length }],
+      action: { label: "Ouvrir le document", onClick: () => setSelectedDocument(result.document) }
+    }));
     setSelectedEntries([]);
     setForm(initialForm);
     await loadData();
@@ -126,10 +135,10 @@ export default function DocumentManager({ canWrite = false, initialOptions = nul
     const response = await fetch(`/api/asset-documents/${selectedDocument.id}/validate`, { method: "POST" });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Validation impossible.");
+      setMessage(actionError(result.error || "Validation impossible."));
       return;
     }
-    setMessage(`Document ${result.document.documentNumber} valide et verrouille.`);
+    setMessage(actionSuccess({ title: "Document validé", message: "Le document est verrouillé et visible dans la liste.", item: result.document.title || "Document", code: result.document.documentNumber, status: "Validé", action: { label: "Voir le document", onClick: () => setSelectedDocument(result.document) } }));
     await loadData();
   }
 
@@ -143,10 +152,10 @@ export default function DocumentManager({ canWrite = false, initialOptions = nul
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Annulation impossible.");
+      setMessage(actionError(result.error || "Annulation impossible."));
       return;
     }
-    setMessage(`Document ${result.document.documentNumber} annule.`);
+    setMessage(actionSuccess({ title: "Document annulé", message: "Le statut a été mis à jour dans la liste.", item: result.document.title || "Document", code: result.document.documentNumber, status: "Annulé", action: { label: "Voir le document", onClick: () => setSelectedDocument(result.document) } }));
     setCancelReason("");
     await loadData();
   }
@@ -157,6 +166,7 @@ export default function DocumentManager({ canWrite = false, initialOptions = nul
 
   return (
     <section className="reference-layout">
+      <ActionFeedback feedback={message} onClose={() => setMessage("")} />
       <div className="reference-grid wide">
         <section className="panel">
           <div className="panel-heading">
@@ -365,7 +375,6 @@ export default function DocumentManager({ canWrite = false, initialOptions = nul
           ) : (
             <p className="summary">Selectionner un document dans la liste.</p>
           )}
-          {message ? <p className="form-message">{message}</p> : null}
         </aside>
       </div>
     </section>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ActionFeedback, { actionError, actionSuccess } from "@/app/components/action-feedback";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -251,10 +252,10 @@ export default function MovementManager({ canCreate = false, canManage = false, 
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Creation impossible.");
+      setMessage(actionError(result.error || "Création impossible."));
       return;
     }
-    setMessage(`Mouvement ${result.movement.movementNumber} cree en brouillon.`);
+    setMessage(actionSuccess({ title: "Brouillon créé", message: "Le mouvement est visible dans la liste et peut maintenant être validé.", item: "Mouvement", code: result.movement.movementNumber, status: "Brouillon", details: [{ label: "Biens", value: result.movement.lines?.length || form.selectedAssetIds.length }], action: { label: "Voir le mouvement", onClick: () => setSelectedMovement(result.movement) } }));
     setForm(initialForm);
     await loadData();
     setSelectedMovement(result.movement);
@@ -266,10 +267,10 @@ export default function MovementManager({ canCreate = false, canManage = false, 
     const response = await fetch(`/api/asset-movements/${selectedMovement.id}/validate`, { method: "POST" });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Validation impossible.");
+      setMessage(actionError(result.error || "Validation impossible."));
       return;
     }
-    setMessage(`Mouvement ${result.movement.movementNumber} valide.`);
+    setMessage(actionSuccess({ title: "Mouvement validé", message: "Les emplacements concernés ont été actualisés.", item: "Mouvement", code: result.movement.movementNumber, status: "Validé", action: { label: "Voir le mouvement", onClick: () => setSelectedMovement(result.movement) } }));
     await loadData();
   }
 
@@ -283,10 +284,10 @@ export default function MovementManager({ canCreate = false, canManage = false, 
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Annulation impossible.");
+      setMessage(actionError(result.error || "Annulation impossible."));
       return;
     }
-    setMessage(`Mouvement ${result.movement.movementNumber} annule.`);
+    setMessage(actionSuccess({ title: "Mouvement annulé", message: "Le statut a été actualisé dans la liste.", item: "Mouvement", code: result.movement.movementNumber, status: "Annulé", action: { label: "Voir le mouvement", onClick: () => setSelectedMovement(result.movement) } }));
     setCancelReason("");
     await loadData();
   }
@@ -295,6 +296,7 @@ export default function MovementManager({ canCreate = false, canManage = false, 
 
   return (
     <section className="reference-layout">
+      <ActionFeedback feedback={message} onClose={() => setMessage("")} />
       <div className="reference-grid wide">
         <section className="panel">
           <div className="panel-heading">
@@ -562,7 +564,6 @@ export default function MovementManager({ canCreate = false, canManage = false, 
           ) : (
             <p className="summary">Selectionner un mouvement dans la liste.</p>
           )}
-          {message ? <p className="form-message">{message}</p> : null}
         </aside>
       </div>
     </section>

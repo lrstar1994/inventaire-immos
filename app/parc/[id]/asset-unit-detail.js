@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ActionFeedback, { actionError, actionSuccess } from "@/app/components/action-feedback";
 import { AssetFileImage, AssetFileLink } from "../asset-file-access-view";
 
 const initialFileForm = {
@@ -131,10 +132,10 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Modification impossible.");
+      setMessage(actionError(result.error || "Modification impossible."));
       return;
     }
-    setMessage(`Bien ${result.unit.assetCode} mis a jour.`);
+    setMessage(actionSuccess({ title: "Fiche mise à jour", message: "Les informations actualisées sont visibles ci-dessous.", item: result.unit.assetItem?.name || unit.assetItem?.name || "Bien", code: result.unit.assetCode, status: label(options.statuses, result.unit.status), action: { label: "Voir la fiche", href: `/parc/${result.unit.id}` } }));
     await loadData();
   }
 
@@ -157,10 +158,10 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
     const response = await fetch("/api/asset-files", { method: "POST", body: formData });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Ajout du fichier impossible.");
+      setMessage(actionError(result.error || "Ajout du fichier impossible."));
       return;
     }
-    setMessage("Fichier ajoute au bien.");
+    setMessage(actionSuccess({ title: "Fichier ajouté", message: "Le fichier est maintenant visible dans la galerie ou les documents du bien.", item: unit.assetItem?.name || "Bien", code: unit.assetCode, status: "Disponible", details: [{ label: "Fichier", value: fileForm.fileLabel || fileForm.file?.name || "Nouveau fichier" }], action: { label: "Voir la fiche", href: `/parc/${unit.id}` } }));
     setFileForm(initialFileForm);
     setFileInputKey((current) => current + 1);
     await loadData();
@@ -175,10 +176,10 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
     });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Photo principale impossible.");
+      setMessage(actionError(result.error || "Photo principale impossible."));
       return;
     }
-    setMessage("Photo principale mise a jour.");
+    setMessage(actionSuccess({ title: "Photo principale définie", message: "Cette image est désormais prioritaire sur la fiche.", item: unit.assetItem?.name || "Bien", code: unit.assetCode, status: "Photo principale", action: { label: "Voir la fiche", href: `/parc/${unit.id}` } }));
     await loadData();
   }
 
@@ -187,10 +188,10 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
     const response = await fetch(`/api/asset-files/${fileId}`, { method: "DELETE" });
     const result = await response.json();
     if (!response.ok) {
-      setMessage(result.error || "Suppression impossible.");
+      setMessage(actionError(result.error || "Suppression impossible."));
       return;
     }
-    setMessage("Fichier supprime logiquement.");
+    setMessage(actionSuccess({ title: "Fichier supprimé", message: "Le fichier n'est plus visible parmi les fichiers actifs.", item: unit.assetItem?.name || "Bien", code: unit.assetCode, status: "Supprimé", action: { label: "Voir la fiche", href: `/parc/${unit.id}` } }));
     await loadData();
   }
 
@@ -201,7 +202,7 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
   if (!unit) {
     return (
       <section className="panel">
-        <p className="summary">{message || "Bien introuvable."}</p>
+        <p className="summary">{(typeof message === "string" ? message : message?.message) || "Bien introuvable."}</p>
         <Link className="button secondary" href="/parc">Retour au parc</Link>
       </section>
     );
@@ -213,7 +214,7 @@ export default function AssetUnitDetail({ assetUnitId, canEdit = false, canUploa
 
   return (
     <form className="form asset-unit-detail-form" onSubmit={saveUnit}>
-      {message ? <p className="form-message">{message}</p> : null}
+      <ActionFeedback feedback={message} onClose={() => setMessage("")} />
 
       <section className="asset-detail-banner">
         <div className="asset-detail-photo">
