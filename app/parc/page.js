@@ -136,6 +136,8 @@ export default async function ParkPage() {
           </p>
         </div>
         <div className="hero-actions">
+          {hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE) ? <Link className="button" href="/parc/nouvelle-entree">Nouvelle entrée</Link> : null}
+          <Link className="button secondary" href="/parc/entrees-en-cours">Entrées en cours</Link>
           <Link className="button secondary" href="/referentiels">
             Referentiels
           </Link>

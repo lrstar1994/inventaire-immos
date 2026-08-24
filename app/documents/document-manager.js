@@ -30,10 +30,10 @@ const initialForm = {
   notes: ""
 };
 
-export default function DocumentManager({ canWrite = false, initialOptions = null, initialDocuments = [] }) {
+export default function DocumentManager({ canWrite = false, initialOptions = null, initialDocuments = [], initialSelectedDocumentId = null }) {
   const [options, setOptions] = useState(initialOptions);
   const [documents, setDocuments] = useState(initialDocuments);
-  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [selectedDocument, setSelectedDocument] = useState(() => initialDocuments.find((document) => document.id === initialSelectedDocumentId) || null);
   const [selectedEntries, setSelectedEntries] = useState([]);
   const [filters, setFilters] = useState({
     mode: "MANUAL",

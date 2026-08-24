@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { canManageAssets } from "@/lib/roles";
 import { getRequestUser } from "@/lib/request-user";
-import { auditEntryCreation, createAssetEntryByTrackingMode } from "@/lib/asset-service";
+import { auditEntryCreation, computeAssetEntryProgress, createAssetEntryByTrackingMode } from "@/lib/asset-service";
 
 const include = {
   assetItem: { select: { id: true, name: true, code: true } },
@@ -27,7 +27,7 @@ export async function GET(request) {
     orderBy: { entryDate: "desc" }
   });
 
-  return jsonOk({ entries });
+  return jsonOk({ entries: entries.map((entry) => ({ ...entry, progress: computeAssetEntryProgress(entry) })) });
 }
 
 export async function POST(request) {

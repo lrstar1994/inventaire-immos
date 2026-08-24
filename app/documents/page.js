@@ -57,12 +57,13 @@ async function loadDocumentData() {
   }));
 }
 
-export default async function DocumentsPage() {
+export default async function DocumentsPage({ searchParams }) {
   const access = await authorizePrivatePage({ returnTo: "/documents" });
   if (access.status !== "authorized") {
     return <AccessDenied status={access.status} />;
   }
   const initialData = await loadDocumentData();
+  const query = await searchParams;
 
   return (
     <main className="shell">
@@ -78,7 +79,7 @@ export default async function DocumentsPage() {
           Retour accueil
         </Link>
       </section>
-      <DocumentManager canWrite={hasPermission(access.user, APP_PERMISSIONS.DOCUMENTS_WRITE)} initialOptions={initialData.options} initialDocuments={initialData.documents} />
+      <DocumentManager canWrite={hasPermission(access.user, APP_PERMISSIONS.DOCUMENTS_WRITE)} initialOptions={initialData.options} initialDocuments={initialData.documents} initialSelectedDocumentId={query?.documentId || null} />
     </main>
   );
 }

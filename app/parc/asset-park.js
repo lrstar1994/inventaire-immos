@@ -710,7 +710,9 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             <strong>Consultation progressive du parc</strong>
             <p>Choisir une famille, un modele ou un emplacement pour obtenir une synthese. La fiche individuelle reste accessible ensuite.</p>
           </div>
-          <div className="category-picker park-category-picker">
+          <details className="category-picker park-category-picker">
+            <summary>Filtrer par famille / catégorie</summary>
+            <div className="park-category-picker-content">
             <div className="fact-line">
               <span>Famille / categorie</span>
               <strong>{categoryBreadcrumb.length ? categoryBreadcrumb.join(" > ") : "Toutes les familles"}</strong>
@@ -731,7 +733,8 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             {filters.categoryPath.length ? (
               <button className="secondary" type="button" onClick={resetCategory}>Revenir a toutes les familles</button>
             ) : null}
-          </div>
+            </div>
+          </details>
           <div className="filter-row park-filter-row">
             <select value={filters.assetItemId} onChange={(event) => { setFilters({ ...filters, assetItemId: event.target.value }); setShowDetails(false); }}>
               <option value="">Tous les articles / modeles</option>
@@ -866,7 +869,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
           )}
         </section>
 
-        {canWrite ? <aside className="panel park-entry-panel">
+        {false && canWrite ? <aside className="panel park-entry-panel">
           <div className="park-panel-title">
             <h2>Nouvelle entree</h2>
             <p className="summary">Enregistrez des biens individuels ou une entrée suivie en quantité.</p>
@@ -1079,11 +1082,11 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
         </div>
       </section> : null}
 
-      <section className="panel park-recent-panel">
-        <div className="park-panel-title">
+      <details className="panel park-recent-panel park-secondary-section">
+        <summary className="park-panel-title">
           <h2>Stocks quantitatifs</h2>
           <p className="summary">Lots suivis en quantité, distincts des biens individualisés.</p>
-        </div>
+        </summary>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Référence</th><th>Famille</th><th>Mode</th><th>Lot</th><th>Emplacement</th><th>Disponible</th><th>Acquise</th><th>Fournisseur</th><th>Date</th><th>Prix</th>{canWrite ? <th>Action</th> : null}</tr></thead>
@@ -1119,13 +1122,13 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
           <label><span>Quantité à individualiser</span><input required type="number" min="1" step="1" max={individualization.availableQuantity} value={individualization.quantity} onChange={(event) => setIndividualization({ ...individualization, quantity: event.target.value })} /></label>
           <div className="form-actions"><button className="button" type="submit">Confirmer l'individualisation</button><button className="secondary" type="button" onClick={() => setIndividualization(null)}>Annuler</button></div>
         </form> : null}
-      </section>
+      </details>
 
-      <section className="panel park-recent-panel">
-        <div className="park-panel-title">
+      <details className="panel park-recent-panel park-secondary-section">
+        <summary className="park-panel-title">
           <h2>Ensembles installés</h2>
           <p className="summary">Composition logique de patrimoines existants, sans création ni réservation de stock.</p>
-        </div>
+        </summary>
         <div className="summary-list park-summary-list">
           {equipmentSets.map((equipmentSet) => (
             <article className="summary-item park-summary-card" key={equipmentSet.id}>
@@ -1171,7 +1174,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             <button className="button" type="submit" disabled={!equipmentComponentForm.equipmentSetId}>Ajouter le composant</button>
           </form>
         </div> : null}
-      </section>
+      </details>
 
       <div className="park-detail-grid detail-row">
         <section className="panel park-recent-panel">
