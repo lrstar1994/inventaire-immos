@@ -22,5 +22,5 @@ export default async function DraftEntryPage({ params, searchParams }) {
   if (!entry) notFound();
   const query = await searchParams;
   const data = JSON.parse(JSON.stringify({ entry, progress: computeAssetEntryProgress(entry), locations, suppliers, options: { conditions: ASSET_CONDITIONS, statuses: ASSET_STATUSES, entryTypes: ENTRY_TYPES, informationStatuses: INFORMATION_STATUSES, assetFiles: assetFileOptions() }, created: query?.created === "1", requestedStep: query?.step || "details" }));
-  return <main className="shell park-shell"><EntryWizard canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialData={data} /></main>;
+  return <main className="shell park-shell entry-ui-screen"><EntryWizard canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialData={data} /></main>;
 }
