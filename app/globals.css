@@ -2204,6 +2204,18 @@ tbody tr:hover {
 .picker-actions { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; margin-top: 6px; }
 .picker-advice { background: linear-gradient(135deg,#fffaf0,#fff); box-shadow: none; color: #52605a; font-size: .78rem; line-height: 1.5; padding: 18px; }
 .picker-advice strong { color: #87601e; font-family: Georgia, serif; font-size: 1.05rem; }
+.quick-create-trigger { align-items: center; border-top: 1px solid #ece8de; display: flex; gap: 12px; justify-content: space-between; margin-top: 14px; padding-top: 14px; }
+.quick-create-trigger small { color: #738079; }
+.quick-create-backdrop { align-items: center; background: rgba(10,48,39,.52); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 1000; }
+.quick-create-dialog { box-shadow: 0 24px 70px rgba(7,48,38,.22); max-height: calc(100vh - 48px); max-width: 680px; overflow: auto; width: 100%; }
+.quick-create-heading { align-items: flex-start; border-bottom: 1px solid #eee8dc; display: flex; justify-content: space-between; margin-bottom: 18px; padding-bottom: 16px; }
+.quick-create-heading h2 { margin: 3px 0 5px; }
+.quick-create-heading p { color: #65716b; margin: 0; }
+.quick-create-close { border-radius: 50%; font-size: 1.35rem; height: 36px; min-width: 36px; padding: 0; }
+.quick-create-dialog form { display: grid; gap: 15px; }
+.quick-create-fields { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+.quick-create-note { background: #fbf7ed; border: 1px solid #eadfc4; border-radius: 10px; color: #5e695f; font-size: .82rem; line-height: 1.5; margin: 0; padding: 12px 14px; }
+.quick-create-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 /* ENTRY-WIZARD-UI-A2 — écrans 4 à 8 */
 .wizard-saved-badge { align-items: center; background: #edf7ed; border-radius: 6px; color: #337b4d; display: inline-flex; font-size: .78rem; font-weight: 700; min-height: 40px; padding: 8px 13px; }
@@ -2316,6 +2328,9 @@ tbody tr:hover {
   .entry-ui-screen .entry-picker-item .picker-family { grid-column: 1; }
   .entry-ui-screen .entry-picker-item .status-pill { grid-column: 2; grid-row: 1 / span 2; }
   .picker-actions { grid-template-columns: 1fr; }
+  .quick-create-trigger { align-items: stretch; flex-direction: column; }
+  .quick-create-fields { grid-template-columns: 1fr; }
+  .quick-create-actions { display: grid; grid-template-columns: 1fr; }
   .wizard-progress-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .entry-ui-screen .wizard-file-grid { grid-template-columns: 1fr; }
   .wizard-form-card label { align-items: stretch; grid-template-columns: 1fr; }

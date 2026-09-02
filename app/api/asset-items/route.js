@@ -11,7 +11,10 @@ const config = {
   required: ["name", "code", "categoryId"],
   fields: ["name", "code", "description", "unitLabel", "depreciationYears", "categoryId", "supplierId", "status"],
   validate: validateAssetItemFamily,
-  searchable: ["name", "code", "description"]
+  searchable: ["name", "code", "description"],
+  returnInclude: { category: { select: { id: true, name: true, code: true, trackingMode: true, controlLevel: true } } },
+  transactionalAudit: true,
+  uniqueConflictMessage: "Un article avec cette référence existe déjà."
 };
 
 const listHandler = createListHandler(config);
