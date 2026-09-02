@@ -3,15 +3,15 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [parkPage, parkUi, pickerPage, picker, drafts, dashboard, wizard, entriesRoute, draftRoute, itemsRoute] = await Promise.all([
+const [parkPage, parkUi, pickerPage, picker, drafts, dashboard, wizard, entriesRoute, draftRoute, itemsRoute, stepper] = await Promise.all([
   read("app/parc/page.js"), read("app/parc/asset-park.js"), read("app/parc/nouvelle-entree/page.js"),
   read("app/parc/nouvelle-entree/entry-article-picker.js"), read("app/parc/entrees-en-cours/page.js"),
-  read("app/parc/entries/[id]/page.js"), read("app/parc/entries/[id]/entry-wizard.js"), read("app/api/asset-entries/route.js"), read("app/api/asset-entries/drafts/route.js"), read("app/api/asset-items/route.js")
+  read("app/parc/entries/[id]/page.js"), read("app/parc/entries/[id]/entry-wizard.js"), read("app/api/asset-entries/route.js"), read("app/api/asset-entries/drafts/route.js"), read("app/api/asset-items/route.js"), read("app/parc/entry-workflow-stepper.js")
 ]);
 
 test("le parc devient une page d'orientation sans formulaire permanent", () => {
   assert.match(parkPage, /Nouvelle entrée/);
-  assert.match(parkPage, /Entrées en cours/);
+  assert.match(stepper, /Entrées en cours/);
   assert.match(parkUi, /Voir les biens/);
   assert.match(parkUi, /false && canWrite/);
   assert.match(parkUi, /Filtrer par famille \/ catégorie/);

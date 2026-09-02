@@ -12,5 +12,5 @@ export default async function NewEntryPage() {
   if (access.status !== "authorized") return <AccessDenied status={access.status} />;
   if (!hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)) return <AccessDenied status="forbidden" />;
   const locations = await prisma.location.findMany({ where: { status: "ACTIVE", deletedAt: null }, select: { id: true, code: true, name: true }, orderBy: { name: "asc" } });
-  return <main className="shell park-shell"><EntryArticlePicker locations={locations} /></main>;
+  return <main className="shell park-shell entry-ui-screen"><EntryArticlePicker locations={locations} /></main>;
 }

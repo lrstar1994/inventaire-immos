@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ActionFeedback, { actionError } from "@/app/components/action-feedback";
+import EntryWorkflowStepper from "../entry-workflow-stepper";
 
 const modeLabels = { I: "Individuel", Q: "Quantité", QI: "Quantité individualisable", E: "Indisponible" };
 
@@ -60,16 +61,19 @@ export default function EntryArticlePicker({ locations }) {
   }
 
   return <>
-    <div className="section-heading park-heading wizard-heading"><div><p className="eyebrow">Nouvelle entrée</p><h1>Choisir l’article / modèle</h1><p className="summary">Aucun brouillon n’est créé avant votre confirmation.</p></div><Link className="button secondary" href="/parc">Retour au parc</Link></div>
+    <div className="section-heading park-heading wizard-heading ui-page-heading"><div><h1>Choisir l’article</h1><p className="summary">Sélectionnez le modèle à enregistrer pour commencer la fiche du bien.</p></div></div>
+    <EntryWorkflowStepper active={3} />
     <ActionFeedback feedback={feedback} onClose={() => setFeedback(null)} />
     <div className="entry-picker-layout">
       <section className="panel entry-picker-results">
-        <label><span>Rechercher un article ou modèle</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nom, code ou famille…" /></label>
+        <h2>Article / modèle</h2>
+        <label className="ui-search-field"><span>⌕</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher un article, une famille ou un modèle…" /></label>
+        <div className="picker-filter-bar"><span className="ui-filter-chip">Famille</span><span className="ui-filter-chip">Mode</span><span className="ui-filter-chip muted">☆ Résultats les plus pertinents</span></div>
         <p className="summary">{searchLoading ? "Recherche…" : `${results.length} référence(s) affichée(s) (maximum 20)`}</p>
         {searchError ? <p className="error-text">{searchError}</p> : null}
-        <div className="entry-picker-list">{results.map((item) => <button className={`entry-picker-item ${selected?.id === item.id ? "selected" : ""}`} key={item.id} type="button" onClick={() => setSelected(item)}><span><strong>{item.name}</strong><small>{item.code} · {item.category?.name || "Famille non renseignée"}</small></span><span className="status-pill">{modeLabels[item.category?.trackingMode] || item.category?.trackingMode}</span></button>)}{!searchLoading && !results.length ? <p className="empty-state">Aucun article ne correspond à la recherche.</p> : null}</div>
+        <div className="entry-picker-list">{results.map((item) => <button className={`entry-picker-item ${selected?.id === item.id ? "selected" : ""}`} key={item.id} type="button" onClick={() => setSelected(item)}><span><strong>{item.name}</strong><small>{item.code}</small></span><span className="picker-family">{item.category?.name || "Famille non renseignée"}</span><span className="status-pill">{modeLabels[item.category?.trackingMode] || item.category?.trackingMode}</span></button>)}{!searchLoading && !results.length ? <p className="empty-state">Aucun article ne correspond à la recherche.</p> : null}</div>
       </section>
-      <aside className="panel entry-picker-start"><h2>Démarrer l’entrée</h2><p className="summary">{selected ? selected.name : "Choisissez d’abord un article."}</p><label><span>Quantité</span><input min="1" step="1" type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label><label><span>Emplacement initial</span><select value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">Choisir</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><div className="info-box">La confirmation crée uniquement un brouillon : aucun bien ni stock n’est créé.</div><button className="button" disabled={busy || !selected || !locationId} type="button" onClick={startDraft}>{busy ? "Création…" : "Créer le brouillon"}</button></aside>
+      <div className="picker-side-column"><aside className="panel entry-picker-start"><h2>Nouvelle entrée</h2><label><span>Article / modèle</span><input readOnly value={selected?.name || "Sélectionnez un article"} /></label><label><span>Quantité</span><input min="1" step="1" type="number" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label><label><span>Emplacement</span><select value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">Sélectionner un emplacement</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><label><span>Type d'entrée</span><input readOnly value="Inventaire progressif" /></label><label><span>Date d'entrée</span><input readOnly value={new Intl.DateTimeFormat("fr-FR").format(new Date())} /></label><label><span>État initial</span><input readOnly value="Bon état" /></label><label><span>Statut initial</span><input readOnly value="En stock" /></label><label><span>Complétude</span><input readOnly value="Partielle" /></label><div className="picker-actions"><button className="secondary" disabled={busy || !selected || !locationId} type="button" onClick={startDraft}>Enregistrer en brouillon</button><button className="button" disabled={busy || !selected || !locationId} type="button" onClick={startDraft}>{busy ? "Création…" : "Continuer →"}</button></div></aside><aside className="panel picker-advice"><strong>💡 Conseil</strong><p>La recherche serveur vous aide à trouver rapidement le bon article sans parcourir tout le référentiel. Aucun bien ni stock n’est créé avant votre confirmation.</p></aside></div>
     </div>
   </>;
 }

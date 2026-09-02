@@ -734,19 +734,14 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
         <section className="panel park-search-panel">
           <div className="panel-heading">
             <div>
-              <h2>Rechercher et filtrer</h2>
-              <p className="summary">Affinez la vue avant d'ouvrir les fiches individuelles.</p>
+              <h2>⌕ Recherche</h2>
             </div>
             <input
               aria-label="Recherche parc"
-              placeholder="Rechercher un code, un modele, un numero de serie..."
+              placeholder="Rechercher par article, modèle, référence…"
               value={filters.q}
               onChange={(event) => setFilters({ ...filters, q: event.target.value })}
             />
-          </div>
-          <div className="info-box park-guide-box">
-            <strong>Consultation progressive du parc</strong>
-            <p>Choisir une famille ou un emplacement pour obtenir une synthèse. La recherche couvre aussi les articles, modèles et codes.</p>
           </div>
           <details className="category-picker park-category-picker">
             <summary>Filtrer par famille / catégorie</summary>
@@ -802,15 +797,14 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             </select>
           </div>
           <div className="form-actions park-filter-actions">
-            <button className="button" type="button" onClick={() => loadUnits(1)} disabled={unitsLoading}>
-              {unitsLoading ? "Chargement…" : "Appliquer les filtres"}
+            <button className="button" type="button" onClick={() => { setShowDetails(true); loadUnits(1); }} disabled={unitsLoading}>
+              {unitsLoading ? "Chargement…" : "⌕ Voir les biens"}
             </button>
-            <button className="secondary" type="button" onClick={() => setShowDetails(!showDetails)} disabled={!filteredUnits.length}>
-              {showDetails ? "Voir la synthese" : "Voir les biens"}
-            </button>
-            <button className="secondary" type="button" onClick={resetFilters}>Reinitialiser</button>
+            <button className="secondary" type="button" onClick={resetFilters}>↻ Réinitialiser</button>
+            {showDetails ? <button className="secondary" type="button" onClick={() => setShowDetails(false)}>Voir la synthèse</button> : null}
           </div>
           {unitsError ? <p className="error-text">{unitsError}</p> : null}
+          {!showDetails ? <div className="park-summary-heading"><span className="summary-heading-icon">⌘</span><div><h2>Synthèse par famille</h2><p>Aperçu du parc physique par famille d'articles.</p></div></div> : null}
           {showDetails ? (
             <div className="table-wrap park-units-table">
               <table>
@@ -862,17 +856,16 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             <div className="summary-list park-summary-list">
               {familySummaries.map((group) => (
                 <article className="summary-item park-summary-card" key={group.key}>
-                  <p className="fact-line"><strong>{group.family}</strong><span>Total : {group.total}</span></p>
-                  <p className="summary-meta">
-                    Modeles : {group.models.slice(0, 5).map(([model, count]) => `${model} (${count})`).join(", ")}
-                    {group.models.length > 5 ? "..." : ""}
-                  </p>
+                  <div className="family-card-title"><span className="family-card-icon">◇</span><strong>{group.family}</strong><span><b>{group.total}</b><small>biens</small></span></div>
+                  <h3>Modèles les plus présents</h3>
+                  <ul className="family-model-list">{group.models.slice(0, 3).map(([model, count]) => <li key={model}><span>{model}</span><strong>{count}</strong></li>)}</ul>
+                  <h3>Emplacements principaux</h3>
                   <div className="location-grid">
-                    {group.locations.slice(0, 12).map(([location, count]) => (
+                    {group.locations.slice(0, 3).map(([location, count]) => (
                       <p className="location-pair" key={location}><span>{location}</span><strong>{count}</strong></p>
                     ))}
                   </div>
-                  {group.locations.length > 12 ? <p className="summary-meta">Autres emplacements disponibles apres filtrage.</p> : null}
+                  <button className="family-detail-link" type="button" onClick={() => { setShowDetails(true); loadUnits(1); }}>Voir le détail →</button>
                 </article>
               ))}
               {!familySummaries.length ? <p className="summary">Choisissez une famille, une categorie ou un article pour afficher la synthese.</p> : null}

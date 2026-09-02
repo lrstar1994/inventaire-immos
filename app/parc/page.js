@@ -7,6 +7,7 @@ import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, ENTRY_TYPES, INFORMAT
 import { assetFileOptions } from "@/lib/asset-file-service";
 import { listAssetUnitsPage } from "@/lib/asset-unit-list";
 import AssetPark from "./asset-park";
+import EntryWorkflowStepper from "./entry-workflow-stepper";
 
 export const metadata = {
   title: "Parc physique | Inventaire Immos"
@@ -69,26 +70,17 @@ export default async function ParkPage() {
   const initialData = await loadParkData();
 
   return (
-    <main className="shell park-shell">
-      <div className="section-heading park-heading">
+    <main className="shell park-shell entry-ui-screen">
+      <div className="section-heading park-heading ui-page-heading">
         <div>
-          <p className="eyebrow">Inventaire des immobilisations</p>
           <h1>Parc physique</h1>
-          <p className="summary">
-            Consultez, filtrez et creez les biens physiques par article, modele et emplacement.
-          </p>
+          <p className="summary">Gérez les biens physiques de l'établissement.</p>
         </div>
         <div className="hero-actions">
-          {hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE) ? <Link className="button" href="/parc/nouvelle-entree">Nouvelle entrée</Link> : null}
-          <Link className="button secondary" href="/parc/entrees-en-cours">Entrées en cours</Link>
-          <Link className="button secondary" href="/referentiels">
-            Referentiels
-          </Link>
-          <Link className="button secondary" href="/">
-            Accueil
-          </Link>
+          {hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE) ? <Link className="button" href="/parc/nouvelle-entree">＋ Nouvelle entrée</Link> : null}
         </div>
       </div>
+      <EntryWorkflowStepper active={1} />
       <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialUnitPagination={initialData.unitPagination} initialEntries={initialData.entries} initialQuantitativeStocks={initialData.quantitativeStocks} initialEquipmentSets={initialData.equipmentSets} />
     </main>
   );
