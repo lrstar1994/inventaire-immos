@@ -17,6 +17,8 @@ export async function GET(request) {
   if (authorization.response) return authorization.response;
   const { searchParams } = new URL(request.url);
   const where = {};
+  const requestedLimit = Number.parseInt(searchParams.get("limit") || "", 10);
+  const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 50) : undefined;
 
   if (searchParams.get("entryStatus")) where.entryStatus = searchParams.get("entryStatus");
   if (searchParams.get("assetItemId")) where.assetItemId = searchParams.get("assetItemId");
@@ -24,7 +26,8 @@ export async function GET(request) {
   const entries = await prisma.assetEntry.findMany({
     where,
     include,
-    orderBy: { entryDate: "desc" }
+    orderBy: { entryDate: "desc" },
+    ...(limit ? { take: limit } : {})
   });
 
   return jsonOk({ entries: entries.map((entry) => ({ ...entry, progress: computeAssetEntryProgress(entry) })) });

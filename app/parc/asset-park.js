@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ActionFeedback, { actionError, actionSuccess } from "@/app/components/action-feedback";
 import { AssetFileImage, AssetFileLink } from "./asset-file-access-view";
 
@@ -81,12 +81,20 @@ function rootCategoryFor(categories, categoryId) {
   return current || null;
 }
 
-export default function AssetPark({ canWrite = false, initialOptions = null, initialUnits = [], initialEntries = [], initialQuantitativeStocks = [], initialEquipmentSets = [] }) {
-  const [options, setOptions] = useState(initialOptions);
+export default function AssetPark({ canWrite = false, initialOptions = null, initialUnits = [], initialUnitPagination = null, initialEntries = [], initialQuantitativeStocks = null, initialEquipmentSets = null }) {
+  const [options] = useState(initialOptions);
   const [units, setUnits] = useState(initialUnits);
+  const [unitPagination, setUnitPagination] = useState(initialUnitPagination || { page: 1, pageSize: 25, total: initialUnits.length, totalPages: 1 });
+  const [unitsLoading, setUnitsLoading] = useState(false);
+  const [unitsError, setUnitsError] = useState("");
   const [entries, setEntries] = useState(initialEntries);
   const [quantitativeStocks, setQuantitativeStocks] = useState(initialQuantitativeStocks);
   const [equipmentSets, setEquipmentSets] = useState(initialEquipmentSets);
+  const [equipmentUnits, setEquipmentUnits] = useState(null);
+  const [stocksLoading, setStocksLoading] = useState(false);
+  const [stocksError, setStocksError] = useState("");
+  const [equipmentSetsLoading, setEquipmentSetsLoading] = useState(false);
+  const [equipmentSetsError, setEquipmentSetsError] = useState("");
   const [equipmentSetForm, setEquipmentSetForm] = useState(initialEquipmentSetForm);
   const [equipmentComponentForm, setEquipmentComponentForm] = useState(initialEquipmentComponentForm);
   const [transfer, setTransfer] = useState(null);
@@ -115,64 +123,88 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   const [entryPhotoInputKey, setEntryPhotoInputKey] = useState(0);
   const [entryDocumentInputKey, setEntryDocumentInputKey] = useState(0);
 
-  async function loadData() {
-    const [nextOptions, nextUnits, nextEntries, nextStocks, nextEquipmentSets] = await Promise.all([
-      fetch("/api/asset-options").then((response) => response.json()),
-      fetch("/api/asset-units").then((response) => response.json()),
-      fetch("/api/asset-entries").then((response) => response.json()),
-      fetch("/api/quantitative-stock-positions").then((response) => response.json()),
-      fetch("/api/equipment-sets").then((response) => response.json())
-    ]);
-    setOptions(nextOptions);
-    setUnits(nextUnits.units || []);
-    setEntries(nextEntries.entries || []);
-    setQuantitativeStocks(nextStocks.positions || []);
-    setEquipmentSets(nextEquipmentSets.equipmentSets || []);
-    setSelected((current) => {
-      if (!current) return null;
-      return (nextUnits.units || []).find((unit) => unit.id === current.id) || null;
-    });
+  async function loadUnits(page = 1, appliedFilters = filters) {
+    setUnitsLoading(true);
+    setUnitsError("");
+    try {
+      const params = new URLSearchParams({ paginate: "true", page: String(page), pageSize: String(unitPagination.pageSize || 25) });
+      for (const key of ["q", "status", "condition", "informationStatus", "assetItemId", "locationId"]) {
+        if (appliedFilters[key]) params.set(key, appliedFilters[key]);
+      }
+      const categoryId = appliedFilters.categoryPath?.[appliedFilters.categoryPath.length - 1];
+      if (categoryId) params.set("categoryIds", collectCategoryDescendants(options.assetCategories, categoryId).join(","));
+      const response = await fetch(`/api/asset-units?${params}`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || result.error || "Chargement des biens impossible.");
+      setUnits(result.units || []);
+      setUnitPagination(result.pagination || unitPagination);
+      setSelected((current) => current ? (result.units || []).find((unit) => unit.id === current.id) || null : null);
+      return result;
+    } catch (error) {
+      setUnitsError(error.message || "Chargement des biens impossible.");
+      return null;
+    } finally {
+      setUnitsLoading(false);
+    }
   }
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  async function loadQuantitativeStocks() {
+    if (stocksLoading) return;
+    setStocksLoading(true);
+    setStocksError("");
+    try {
+      const response = await fetch("/api/quantitative-stock-positions");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || result.error || "Chargement des stocks impossible.");
+      setQuantitativeStocks(result.positions || []);
+    } catch (error) {
+      setStocksError(error.message || "Chargement des stocks impossible.");
+    } finally {
+      setStocksLoading(false);
+    }
+  }
 
-  const filteredUnits = useMemo(() => {
-    if (!options) return [];
-    const term = filters.q.trim().toLowerCase();
-    const selectedCategoryId = filters.categoryPath[filters.categoryPath.length - 1] || "";
-    const categoryIds = selectedCategoryId ? collectCategoryDescendants(options.assetCategories, selectedCategoryId) : [];
-    return units.filter((unit) => {
-      const matchesText =
-        !term ||
-        [unit.assetCode, unit.serialNumber, unit.assetItem?.name, unit.location?.name]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(term));
-      return (
-        matchesText &&
-        (!filters.locationId || unit.location?.id === filters.locationId) &&
-        (!filters.assetItemId || unit.assetItem?.id === filters.assetItemId) &&
-        (!selectedCategoryId || categoryIds.includes(unit.assetItem?.categoryId)) &&
-        (!filters.status || unit.status === filters.status) &&
-        (!filters.condition || unit.condition === filters.condition) &&
-        (!filters.informationStatus || unit.informationStatus === filters.informationStatus)
-      );
-    });
-  }, [filters, options, units]);
+  async function loadEquipmentSets() {
+    if (equipmentSetsLoading) return;
+    setEquipmentSetsLoading(true);
+    setEquipmentSetsError("");
+    try {
+      const [setsResponse, unitsResponse] = await Promise.all([
+        fetch("/api/equipment-sets"),
+        fetch("/api/asset-units?purpose=equipment")
+      ]);
+      const [setsResult, unitsResult] = await Promise.all([setsResponse.json(), unitsResponse.json()]);
+      if (!setsResponse.ok) throw new Error(setsResult.message || setsResult.error || "Chargement des ensembles impossible.");
+      if (!unitsResponse.ok) throw new Error(unitsResult.message || unitsResult.error || "Chargement des biens compatibles impossible.");
+      setEquipmentSets(setsResult.equipmentSets || []);
+      setEquipmentUnits(unitsResult.units || []);
+    } catch (error) {
+      setEquipmentSetsError(error.message || "Chargement des ensembles impossible.");
+    } finally {
+      setEquipmentSetsLoading(false);
+    }
+  }
+
+  async function loadData() {
+    const requests = [
+      loadUnits(unitPagination.page),
+      fetch("/api/asset-entries?limit=8").then(async (response) => {
+        const result = await response.json();
+        if (response.ok) setEntries(result.entries || []);
+      })
+    ];
+    if (quantitativeStocks !== null) requests.push(loadQuantitativeStocks());
+    if (equipmentSets !== null) requests.push(loadEquipmentSets());
+    await Promise.all(requests);
+  }
+
+  const filteredUnits = units;
 
   const visibleCategoryParentId = filters.categoryPath[filters.categoryPath.length - 1] || null;
   const visibleCategories = useMemo(() => {
     if (!options) return [];
     return options.assetCategories.filter((category) => (category.parentId || null) === visibleCategoryParentId);
   }, [options, visibleCategoryParentId]);
-
-  const selectedCategoryId = filters.categoryPath[filters.categoryPath.length - 1] || "";
-  const categoryScope = options && selectedCategoryId ? collectCategoryDescendants(options.assetCategories, selectedCategoryId) : [];
-  const filteredAssetItems = useMemo(() => {
-    if (!options) return [];
-    return options.assetItems.filter((item) => !selectedCategoryId || categoryScope.includes(item.categoryId));
-  }, [categoryScope, options, selectedCategoryId]);
 
   const categoryBreadcrumb = useMemo(() => {
     if (!options) return [];
@@ -265,12 +297,14 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   }
 
   function showModelDetails(assetItemId) {
-    setFilters((current) => ({ ...current, assetItemId }));
+    const nextFilters = { ...filters, assetItemId };
+    setFilters(nextFilters);
     setShowDetails(true);
+    loadUnits(1, nextFilters);
   }
 
   function resetFilters() {
-    setFilters({
+    const emptyFilters = {
       q: "",
       status: "",
       condition: "",
@@ -278,8 +312,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
       categoryPath: [],
       assetItemId: "",
       locationId: ""
-    });
+    };
+    setFilters(emptyFilters);
     setShowDetails(false);
+    loadUnits(1, emptyFilters);
   }
 
   function lastMovement(unit) {
@@ -642,7 +678,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
   async function submitEquipmentComponent(event) {
     event.preventDefault();
     setMessage("");
-    const position = quantitativeStocks.find((item) => item.id === equipmentComponentForm.stockPositionId);
+    const position = (quantitativeStocks || []).find((item) => item.id === equipmentComponentForm.stockPositionId);
     const payload = equipmentComponentForm.type === "INDIVIDUAL"
       ? { assetUnitId: equipmentComponentForm.assetUnitId, quantity: 1, notes: equipmentComponentForm.notes }
       : { assetEntryId: position?.assetEntry?.id, sourceLocationId: position?.location?.id, quantity: equipmentComponentForm.quantity, notes: equipmentComponentForm.notes };
@@ -680,13 +716,15 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
 
   const selectedEntryItem = options.assetItems.find((item) => item.id === entry.assetItemId);
   const selectedTrackingMode = selectedEntryItem?.category?.trackingMode || "I";
-  const selectedEquipmentSet = equipmentSets.find((item) => item.id === equipmentComponentForm.equipmentSetId);
-  const usedAssetUnitIds = new Set(equipmentSets.flatMap((item) => item.components || []).map((component) => component.assetUnitId).filter(Boolean));
+  const stockItems = quantitativeStocks || [];
+  const equipmentSetItems = equipmentSets || [];
+  const selectedEquipmentSet = equipmentSetItems.find((item) => item.id === equipmentComponentForm.equipmentSetId);
+  const usedAssetUnitIds = new Set(equipmentSetItems.flatMap((item) => item.components || []).map((component) => component.assetUnitId).filter(Boolean));
   const compatibleEquipmentUnits = selectedEquipmentSet
-    ? units.filter((unit) => unit.location?.id === selectedEquipmentSet.locationId && !unit.deletedAt && unit.status !== "RETIRED" && !usedAssetUnitIds.has(unit.id))
+    ? (equipmentUnits || []).filter((unit) => unit.location?.id === selectedEquipmentSet.locationId && unit.status !== "RETIRED" && !usedAssetUnitIds.has(unit.id))
     : [];
   const compatibleEquipmentStocks = selectedEquipmentSet
-    ? quantitativeStocks.filter((position) => position.location?.id === selectedEquipmentSet.locationId && position.availableQuantity > 0)
+    ? stockItems.filter((position) => position.location?.id === selectedEquipmentSet.locationId && position.availableQuantity > 0)
     : [];
 
   return (
@@ -708,7 +746,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
           </div>
           <div className="info-box park-guide-box">
             <strong>Consultation progressive du parc</strong>
-            <p>Choisir une famille, un modele ou un emplacement pour obtenir une synthese. La fiche individuelle reste accessible ensuite.</p>
+            <p>Choisir une famille ou un emplacement pour obtenir une synthèse. La recherche couvre aussi les articles, modèles et codes.</p>
           </div>
           <details className="category-picker park-category-picker">
             <summary>Filtrer par famille / catégorie</summary>
@@ -736,12 +774,6 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             </div>
           </details>
           <div className="filter-row park-filter-row">
-            <select value={filters.assetItemId} onChange={(event) => { setFilters({ ...filters, assetItemId: event.target.value }); setShowDetails(false); }}>
-              <option value="">Tous les articles / modeles</option>
-              {filteredAssetItems.map((item) => (
-                <option key={item.id} value={item.id}>{assetItemOptionLabel(item)}</option>
-              ))}
-            </select>
             <select value={filters.locationId} onChange={(event) => { setFilters({ ...filters, locationId: event.target.value }); setShowDetails(false); }}>
               <option value="">Tous les emplacements</option>
               {options.locations.map((item) => (
@@ -770,11 +802,15 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
             </select>
           </div>
           <div className="form-actions park-filter-actions">
+            <button className="button" type="button" onClick={() => loadUnits(1)} disabled={unitsLoading}>
+              {unitsLoading ? "Chargement…" : "Appliquer les filtres"}
+            </button>
             <button className="secondary" type="button" onClick={() => setShowDetails(!showDetails)} disabled={!filteredUnits.length}>
               {showDetails ? "Voir la synthese" : "Voir les biens"}
             </button>
             <button className="secondary" type="button" onClick={resetFilters}>Reinitialiser</button>
           </div>
+          {unitsError ? <p className="error-text">{unitsError}</p> : null}
           {showDetails ? (
             <div className="table-wrap park-units-table">
               <table>
@@ -867,6 +903,11 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               {!unitSummaries.length ? <p className="summary">Aucun bien ne correspond aux filtres.</p> : null}
             </div>
           )}
+          <div className="form-actions park-pagination" aria-label="Pagination des biens">
+            <button className="secondary" type="button" disabled={unitsLoading || unitPagination.page <= 1} onClick={() => loadUnits(unitPagination.page - 1)}>Page précédente</button>
+            <span>Page {unitPagination.page} sur {unitPagination.totalPages} · {unitPagination.total} bien(s)</span>
+            <button className="secondary" type="button" disabled={unitsLoading || unitPagination.page >= unitPagination.totalPages} onClick={() => loadUnits(unitPagination.page + 1)}>Page suivante</button>
+          </div>
         </section>
 
         {false && canWrite ? <aside className="panel park-entry-panel">
@@ -1082,16 +1123,18 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
         </div>
       </section> : null}
 
-      <details className="panel park-recent-panel park-secondary-section">
+      <details className="panel park-recent-panel park-secondary-section" onToggle={(event) => { if (event.currentTarget.open && quantitativeStocks === null) loadQuantitativeStocks(); }}>
         <summary className="park-panel-title">
           <h2>Stocks quantitatifs</h2>
           <p className="summary">Lots suivis en quantité, distincts des biens individualisés.</p>
         </summary>
-        <div className="table-wrap">
+        {stocksLoading ? <p className="summary">Chargement des stocks…</p> : null}
+        {stocksError ? <div className="error-text"><p>{stocksError}</p><button className="secondary" type="button" onClick={loadQuantitativeStocks}>Réessayer</button></div> : null}
+        {!stocksLoading && !stocksError ? <div className="table-wrap">
           <table>
             <thead><tr><th>Référence</th><th>Famille</th><th>Mode</th><th>Lot</th><th>Emplacement</th><th>Disponible</th><th>Acquise</th><th>Fournisseur</th><th>Date</th><th>Prix</th>{canWrite ? <th>Action</th> : null}</tr></thead>
             <tbody>
-              {quantitativeStocks.map((position) => {
+              {stockItems.map((position) => {
                 const item = position.assetEntry?.assetItem;
                 const family = item?.category;
                 return <tr key={position.id}>
@@ -1105,10 +1148,10 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
                   </td> : null}
                 </tr>;
               })}
-              {!quantitativeStocks.length ? <tr><td colSpan={canWrite ? 11 : 10}>Aucun stock quantitatif enregistré.</td></tr> : null}
+              {!stockItems.length ? <tr><td colSpan={canWrite ? 11 : 10}>Aucun stock quantitatif enregistré.</td></tr> : null}
             </tbody>
           </table>
-        </div>
+        </div> : null}
         {transfer ? <form className="form" onSubmit={submitQuantitativeTransfer}>
           <div className="info-box"><strong>{transfer.itemName} — {transfer.entryNumber}</strong><p>Source : {transfer.fromLocationName} · Disponible : {transfer.availableQuantity}</p></div>
           <label><span>Destination</span><select required value={transfer.toLocationId} onChange={(event) => setTransfer({ ...transfer, toLocationId: event.target.value })}><option value="">Choisir</option>{options.locations.filter((location) => location.id !== transfer.fromLocationId).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
@@ -1124,13 +1167,15 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
         </form> : null}
       </details>
 
-      <details className="panel park-recent-panel park-secondary-section">
+      <details className="panel park-recent-panel park-secondary-section" onToggle={(event) => { if (event.currentTarget.open && equipmentSets === null) loadEquipmentSets(); }}>
         <summary className="park-panel-title">
           <h2>Ensembles installés</h2>
           <p className="summary">Composition logique de patrimoines existants, sans création ni réservation de stock.</p>
         </summary>
-        <div className="summary-list park-summary-list">
-          {equipmentSets.map((equipmentSet) => (
+        {equipmentSetsLoading ? <p className="summary">Chargement des ensembles…</p> : null}
+        {equipmentSetsError ? <div className="error-text"><p>{equipmentSetsError}</p><button className="secondary" type="button" onClick={loadEquipmentSets}>Réessayer</button></div> : null}
+        {!equipmentSetsLoading && !equipmentSetsError ? <div className="summary-list park-summary-list">
+          {equipmentSetItems.map((equipmentSet) => (
             <article className="summary-item park-summary-card" key={equipmentSet.id}>
               <p className="fact-line"><strong>{equipmentSet.code} — {equipmentSet.name}</strong><span>{equipmentSet.status}</span></p>
               <p className="summary-meta">Emplacement : {equipmentSet.location?.name || "-"}</p>
@@ -1148,8 +1193,8 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
               {canWrite ? <div className="form-actions"><button className="secondary" type="button" onClick={() => disableEquipmentSetFromUi(equipmentSet.id)}>Désactiver</button></div> : null}
             </article>
           ))}
-          {!equipmentSets.length ? <p className="summary">Aucun ensemble installé actif.</p> : null}
-        </div>
+          {!equipmentSetItems.length ? <p className="summary">Aucun ensemble installé actif.</p> : null}
+        </div> : null}
 
         {canWrite ? <div className="park-detail-grid detail-row">
           <form className="form" onSubmit={submitEquipmentSet}>
@@ -1164,7 +1209,7 @@ export default function AssetPark({ canWrite = false, initialOptions = null, ini
           <form className="form" onSubmit={submitEquipmentComponent}>
             <h3>Ajouter un composant</h3>
             <div className="info-box">Un composant quantitatif est descriptif : il ne réserve et ne décrémente pas le stock.</div>
-            <label><span>Ensemble</span><select required value={equipmentComponentForm.equipmentSetId} onChange={(event) => setEquipmentComponentForm({ ...initialEquipmentComponentForm, equipmentSetId: event.target.value })}><option value="">Choisir</option>{equipmentSets.map((item) => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}</select></label>
+            <label><span>Ensemble</span><select required value={equipmentComponentForm.equipmentSetId} onChange={(event) => setEquipmentComponentForm({ ...initialEquipmentComponentForm, equipmentSetId: event.target.value })}><option value="">Choisir</option>{equipmentSetItems.map((item) => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}</select></label>
             <label><span>Type</span><select value={equipmentComponentForm.type} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, type: event.target.value, assetUnitId: "", stockPositionId: "", quantity: 1 })}><option value="INDIVIDUAL">Unité individuelle</option><option value="QUANTITATIVE">Quantité d'un lot</option></select></label>
             {equipmentComponentForm.type === "INDIVIDUAL" ? <label><span>Bien individuel compatible</span><select required value={equipmentComponentForm.assetUnitId} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, assetUnitId: event.target.value })}><option value="">Choisir</option>{compatibleEquipmentUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.assetCode} — {unit.assetItem?.name}</option>)}</select></label> : <>
               <label><span>Lot quantitatif au même emplacement</span><select required value={equipmentComponentForm.stockPositionId} onChange={(event) => setEquipmentComponentForm({ ...equipmentComponentForm, stockPositionId: event.target.value })}><option value="">Choisir</option>{compatibleEquipmentStocks.map((position) => <option key={position.id} value={position.id}>{position.assetEntry?.entryNumber} — {position.assetEntry?.assetItem?.name} — disponible {position.availableQuantity}</option>)}</select></label>

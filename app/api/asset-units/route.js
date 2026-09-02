@@ -4,6 +4,7 @@ import { jsonError, jsonOk, readJson } from "@/lib/api";
 import { canManageAssets } from "@/lib/roles";
 import { getRequestUser } from "@/lib/request-user";
 import { auditEntryCreation, createAssetEntryWithUnits } from "@/lib/asset-service";
+import { listAssetUnitsPage } from "@/lib/asset-unit-list";
 import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
 
 const include = {
@@ -26,8 +27,9 @@ const include = {
     orderBy: { createdAt: "desc" }
   },
   assetFiles: {
-    where: { deletedAt: null },
-    orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }]
+    where: { deletedAt: null, mimeType: { startsWith: "image/" } },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+    take: 1
   }
 };
 
@@ -35,6 +37,36 @@ export async function GET(request) {
   const authorization = await authorizeApiRequest();
   if (authorization.response) return authorization.response;
   const { searchParams } = new URL(request.url);
+  if (searchParams.get("purpose") === "equipment") {
+    const units = await prisma.assetUnit.findMany({
+      where: { deletedAt: null, status: { not: "RETIRED" } },
+      select: {
+        id: true,
+        assetCode: true,
+        status: true,
+        location: { select: { id: true, name: true, code: true } },
+        assetItem: { select: { id: true, name: true, code: true } }
+      },
+      orderBy: { assetCode: "asc" }
+    });
+    return jsonOk({ units });
+  }
+  if (searchParams.get("paginate") === "true") {
+    const categoryIds = (searchParams.get("categoryIds") || "").split(",").map((value) => value.trim()).filter(Boolean);
+    return jsonOk(await listAssetUnitsPage({
+      page: searchParams.get("page"),
+      pageSize: searchParams.get("pageSize"),
+      filters: {
+        q: searchParams.get("q"),
+        condition: searchParams.get("condition"),
+        status: searchParams.get("status"),
+        informationStatus: searchParams.get("informationStatus"),
+        assetItemId: searchParams.get("assetItemId"),
+        locationId: searchParams.get("locationId"),
+        categoryIds
+      }
+    }));
+  }
   const where = { deletedAt: null };
   const q = searchParams.get("q");
 

@@ -3,10 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [parkPage, parkUi, pickerPage, picker, drafts, dashboard, wizard, entriesRoute, draftRoute] = await Promise.all([
+const [parkPage, parkUi, pickerPage, picker, drafts, dashboard, wizard, entriesRoute, draftRoute, itemsRoute] = await Promise.all([
   read("app/parc/page.js"), read("app/parc/asset-park.js"), read("app/parc/nouvelle-entree/page.js"),
   read("app/parc/nouvelle-entree/entry-article-picker.js"), read("app/parc/entrees-en-cours/page.js"),
-  read("app/parc/entries/[id]/page.js"), read("app/parc/entries/[id]/entry-wizard.js"), read("app/api/asset-entries/route.js"), read("app/api/asset-entries/drafts/route.js")
+  read("app/parc/entries/[id]/page.js"), read("app/parc/entries/[id]/entry-wizard.js"), read("app/api/asset-entries/route.js"), read("app/api/asset-entries/drafts/route.js"), read("app/api/asset-items/route.js")
 ]);
 
 test("le parc devient une page d'orientation sans formulaire permanent", () => {
@@ -25,13 +25,14 @@ test("les fonctions secondaires du parc restent accessibles et repliées", () =>
 
 test("ouvrir le sélecteur ne crée aucun brouillon", () => {
   assert.doesNotMatch(pickerPage, /createAssetEntryDraft|assetEntry\.create/);
-  assert.doesNotMatch(picker, /useEffect\([\s\S]*drafts/);
+  assert.doesNotMatch(picker.slice(0, picker.indexOf("async function startDraft")), /asset-entries\/drafts/);
   assert.match(picker, /startDraft/);
 });
 
 test("la recherche porte sur les colonnes légères existantes", () => {
-  assert.match(pickerPage, /select: \{ id: true, code: true, name: true/);
-  assert.match(picker, /item\.name, item\.code, item\.category\?\.name/);
+  assert.doesNotMatch(pickerPage, /assetItem\.findMany/);
+  assert.match(itemsRoute, /select: \{ id: true, code: true, name: true/);
+  assert.match(itemsRoute, /name:[\s\S]*code:[\s\S]*category:/);
   assert.match(picker, /modeLabels/);
 });
 

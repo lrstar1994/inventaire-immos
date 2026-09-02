@@ -5,8 +5,7 @@ import { authorizePrivatePage } from "@/lib/authorization-page";
 import { APP_PERMISSIONS, hasPermission } from "@/lib/authorization";
 import { ASSET_CONDITIONS, ASSET_STATUSES, ENTRY_STATUSES, ENTRY_TYPES, INFORMATION_STATUSES } from "@/lib/asset-constants";
 import { assetFileOptions } from "@/lib/asset-file-service";
-import { listEquipmentSets } from "@/lib/equipment-set-service";
-import { toAssetUnitsAccessDtos } from "@/lib/storage/asset-file-access-dto";
+import { listAssetUnitsPage } from "@/lib/asset-unit-list";
 import AssetPark from "./asset-park";
 
 export const metadata = {
@@ -15,95 +14,38 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-const unitInclude = {
-  assetItem: { select: { id: true, name: true, code: true, categoryId: true } },
-  location: { select: { id: true, name: true, code: true } },
-  supplier: { select: { id: true, name: true, code: true } },
-  entry: { select: { id: true, entryNumber: true, entryType: true, entryStatus: true } },
-  documentLines: {
-    include: {
-      document: { select: { id: true, documentNumber: true, documentType: true, status: true } }
-    },
-    orderBy: { createdAt: "desc" }
-  },
-  movementLines: {
-    include: {
-      movement: { select: { id: true, movementNumber: true, movementType: true, movementStatus: true, movementDate: true } },
-      fromLocation: { select: { id: true, name: true, code: true } },
-      toLocation: { select: { id: true, name: true, code: true } }
-    },
-    orderBy: { createdAt: "desc" }
-  },
-  assetFiles: {
-    where: { deletedAt: null },
-    orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }]
-  }
-};
-
 async function loadParkData() {
-  const [assetItems, assetCategories, locations, suppliers, units, entries, quantitativeStocks, equipmentSets] = await Promise.all([
-    prisma.assetItem.findMany({
-      where: { status: "ACTIVE", deletedAt: null },
-      include: {
-        category: { select: { id: true, name: true, code: true, parentId: true, hierarchyLevel: true, trackingMode: true, controlLevel: true } },
-        supplier: { select: { id: true, name: true, code: true } }
-      },
-      orderBy: { name: "asc" }
-    }),
+  const [assetCategories, locations, unitPage, entries] = await Promise.all([
     prisma.assetCategory.findMany({
       where: { status: "ACTIVE", deletedAt: null },
+      select: { id: true, name: true, code: true, parentId: true, hierarchyLevel: true, trackingMode: true, controlLevel: true, displayOrder: true },
       orderBy: [{ displayOrder: "asc" }, { name: "asc" }]
     }),
     prisma.location.findMany({
       where: { status: "ACTIVE", deletedAt: null },
-      include: { parent: { select: { id: true, name: true, code: true } } },
+      select: { id: true, name: true, code: true, parentId: true, parent: { select: { id: true, name: true, code: true } } },
       orderBy: { name: "asc" }
     }),
-    prisma.supplier.findMany({
-      where: { status: "ACTIVE", deletedAt: null },
-      orderBy: { name: "asc" }
-    }),
-    prisma.assetUnit.findMany({
-      where: { deletedAt: null },
-      include: unitInclude,
-      orderBy: { assetCode: "asc" }
-    }),
+    listAssetUnitsPage(),
     prisma.assetEntry.findMany({
-      include: {
+      select: {
+        id: true,
+        entryNumber: true,
+        quantity: true,
+        entryStatus: true,
         assetItem: { select: { id: true, name: true, code: true } },
-        location: { select: { id: true, name: true, code: true } },
-        supplier: { select: { id: true, name: true, code: true } },
-        assetUnits: { select: { id: true, assetCode: true, status: true, condition: true } }
       },
-      orderBy: { entryDate: "desc" }
-    }),
-    prisma.quantitativeStockPosition.findMany({
-      include: {
-        location: { select: { id: true, name: true, code: true } },
-        assetEntry: {
-          include: {
-            supplier: { select: { id: true, name: true, code: true } },
-            assetItem: {
-              include: {
-                category: { include: { parent: { include: { parent: true } } } }
-              }
-            }
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" }
-    }),
-    listEquipmentSets()
+      orderBy: { entryDate: "desc" },
+      take: 8
+    })
   ]);
-
-  const accessibleUnits = await toAssetUnitsAccessDtos(units);
 
   return JSON.parse(JSON.stringify({
     options: {
-      assetItems,
+      assetItems: [],
       assetCategories,
       locations,
-      suppliers,
+      suppliers: [],
       conditions: ASSET_CONDITIONS,
       statuses: ASSET_STATUSES,
       informationStatuses: INFORMATION_STATUSES,
@@ -111,10 +53,11 @@ async function loadParkData() {
       entryStatuses: ENTRY_STATUSES,
       assetFileOptions: assetFileOptions()
     },
-    units: accessibleUnits,
+    units: unitPage.units,
+    unitPagination: unitPage.pagination,
     entries,
-    quantitativeStocks,
-    equipmentSets
+    quantitativeStocks: null,
+    equipmentSets: null
   }));
 }
 
@@ -146,7 +89,7 @@ export default async function ParkPage() {
           </Link>
         </div>
       </div>
-      <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialEntries={initialData.entries} initialQuantitativeStocks={initialData.quantitativeStocks} initialEquipmentSets={initialData.equipmentSets} />
+      <AssetPark canWrite={hasPermission(access.user, APP_PERMISSIONS.ASSETS_WRITE)} initialOptions={initialData.options} initialUnits={initialData.units} initialUnitPagination={initialData.unitPagination} initialEntries={initialData.entries} initialQuantitativeStocks={initialData.quantitativeStocks} initialEquipmentSets={initialData.equipmentSets} />
     </main>
   );
 }
